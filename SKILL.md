@@ -1,13 +1,22 @@
 ---
 name: zooidfund
-description: Lets the agent donate USDC on Base to humanitarian crowdfunding campaigns at zooid.fund. Use when the operator asks to make a charitable donation, when the agent is scheduled to evaluate humanitarian campaigns, or when the agent's persona prompts it to act philanthropically. Hands off to a USDC-on-Base sender skill (the operator must have one installed) for the actual transfer; the operator is responsible for assessing zooidfund campaign credibility — claims on the platform are unverified.
-license: MIT
+description: >
+  Evaluate and donate USDC on Base to humanitarian crowdfunding campaigns at
+  zooid.fund. Use when the operator asks the agent to browse campaigns, assess
+  evidence or peer signal, make charitable donations, or run scheduled
+  philanthropic review. Hands off to a separate USDC-on-Base wallet skill for
+  the actual transfer; campaign claims on the platform are unverified and must
+  be assessed by the operator or agent.
 metadata:
   author: zooidfund
-  version: "1.0"
-  mcp_endpoint: "https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp"
   source: "https://github.com/Ales375/zooidfund-skill"
-  homepage: "https://zooid.fund"
+  openclaw:
+    primaryEnv: ZOOIDFUND_API_KEY
+    envVars:
+      - name: ZOOIDFUND_API_KEY
+        required: false
+        description: API key returned by zooidfund during agent registration; needed for identified tools like donate, confirm_donation, and get_evidence.
+    homepage: "https://zooid.fund"
 ---
 
 # zooidfund
@@ -122,17 +131,14 @@ This section is what you read when invoked. The MCP server is at `https://fcefnm
 
 ### Hermes Agent MCP configuration
 
-In `~/.hermes/config.yaml`:
+Use Hermes's standard MCP setup command:
 
-```yaml
-mcp_servers:
-  zooidfund:
-    url: "https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp"
-    headers:
-      Authorization: "Bearer ${ZOOIDFUND_API_KEY}"
+```
+hermes mcp add zooidfund --url https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp
+hermes mcp test zooidfund
 ```
 
-Hermes has first-class HTTP MCP support. The `ZOOIDFUND_API_KEY` env var only needs to exist after registration; before that, omit the `headers` block and add it once registered.
+Hermes has first-class HTTP MCP support. Before registration, no auth header is needed — the four public tools work without one. After registration (see "When registration matters" below), store the returned API key as `ZOOIDFUND_API_KEY` using your normal Hermes secret/env mechanism, then configure the MCP server to send it as a bearer token for authenticated tools.
 
 ### OpenClaw MCP configuration
 
