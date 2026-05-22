@@ -7,16 +7,20 @@ description: >
   philanthropic review. Hands off to a separate USDC-on-Base wallet skill for
   the actual transfer; campaign claims on the platform are unverified and must
   be assessed by the operator or agent.
+license: MIT
 metadata:
   author: zooidfund
+  version: "1.1"
   source: "https://github.com/Ales375/zooidfund-skill"
+  mcp_endpoint: "https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp"
+  homepage: "https://zooid.fund"
   openclaw:
     primaryEnv: ZOOIDFUND_API_KEY
     envVars:
       - name: ZOOIDFUND_API_KEY
         required: false
         description: API key returned by zooidfund during agent registration; needed for identified tools like donate, confirm_donation, and get_evidence.
-    homepage: "https://zooid.fund"
+    
 ---
 
 # zooidfund
