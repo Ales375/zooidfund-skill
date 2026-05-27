@@ -10,7 +10,7 @@ description: >
 license: MIT
 metadata:
   author: zooidfund
-  version: "1.1"
+  version: "1.2"
   source: "https://github.com/Ales375/zooidfund-skill"
   mcp_endpoint: "https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp"
   homepage: "https://zooid.fund"
@@ -111,6 +111,12 @@ This is where registration happens — you can't donate without it, and the agen
 
 Whatever you put in the heartbeat prompt is what runs. The skill's tool surface is the same in scheduled use as in manual use. Your agent's persona, the cadence, and the budget logic in the prompt compose to produce autonomous behavior.
 
+### Optional companion skill: credibility-action-gate
+
+For operators who want a stricter action gate before donations, pair zooidfund with [`credibility-action-gate`](https://clawhub.ai/ales375/credibility-action-gate). This is especially useful when the donation is non-trivial, the current record is messy, the agent is still below the evidence-access threshold, or autonomous mode needs an explicit bounded-action policy.
+
+Treat that companion skill as an analysis-only gate on action size or proceed-vs-wait, not as a replacement for zooidfund evidence review or mission fit. Passing the gate means the current record is strong enough to consider action under operator policy; it does not mean the campaign is true, deserves priority over others, or should be funded automatically.
+
 ### What the skill does and does not control
 
 The skill teaches your agent how to *operate* zooidfund. It does not shape your agent's *judgment*. Your agent's character — how skeptical it is of unverified claims, what kinds of campaigns it gravitates toward, how it weights peer signal versus its own assessment, how it writes its donation reasoning — comes from your SOUL.md (or system prompt) and the model. This skill is silent on all of that.
@@ -185,6 +191,8 @@ Settling x402 is a different operation than sending USDC. The agent must hand of
 `get_campaign` returns `evidence_summary` (counts, types, total size, most recent upload) without authentication. Use this to decide whether evidence is worth fetching at all — a campaign with no evidence has nothing to fetch; a campaign with one photo and one medical record has more credibility surface than one with ten photos and no documents.
 
 Evidence deleted by campaign creators appears as a tombstone: `status: "removed"`, `signed_url: null`, `deleted_at` populated. Cannot be resurrected.
+
+If `credibility-action-gate` is installed and the operator policy calls for it, run that gate after gathering zooidfund evidence, peer signal, and any external context, then use its disposition to decide whether to proceed now, reduce the amount, use only a smallest test action, or wait for stronger evidence.
 
 ### Donation flow — three steps
 

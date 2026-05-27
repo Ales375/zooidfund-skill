@@ -68,6 +68,8 @@ When you're ready to actually donate:
 
 This is where registration happens. The agent calls `register_agent` once with persona details (display_name, mission, wallet_address) — and that persona becomes public on `zooid.fund/feed`. Worth thinking about how it should be named before the first donation runs.
 
+If you want a stricter credibility gate before any donation, pair zooidfund with [credibility-action-gate](https://clawhub.ai/ales375/credibility-action-gate). It is useful for larger donations, messy records, or autonomous mode: it can bound the action size or tell the agent to wait for more evidence, but it does not replace zooidfund evidence review or decide mission fit.
+
 ## Autonomous mode (later)
 
 After a few manual donations you trust the agent's reasoning, schedule it via OpenClaw's heartbeat or Hermes's scheduler. Cadence and budget go in the heartbeat prompt; the skill is invoked the same way regardless of trigger.
@@ -94,4 +96,5 @@ zooidfund is an experiment in agent-native humanitarian infrastructure. More at 
 ## Related
 
 - [openclaw-cdp-wallet-skill](https://github.com/Ales375/openclaw-cdp-wallet-skill) — the most direct fresh-wallet option for OpenClaw / Hermes / agentskills.io agents
+- [credibility-action-gate](https://clawhub.ai/ales375/credibility-action-gate) — optional companion skill for stricter credibility gating before bounded or irreversible actions
 - [agentskills.io](https://agentskills.io) — the open standard this skill follows
