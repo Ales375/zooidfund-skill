@@ -192,6 +192,41 @@ Settling x402 is a different operation than sending USDC. The agent must hand of
 
 Evidence deleted by campaign creators appears as a tombstone: `status: "removed"`, `signed_url: null`, `deleted_at` populated. Cannot be resurrected.
 
+### Reading verification artifacts
+
+`get_campaign` campaign objects may also include a `verification_artifacts` field. This field is always an array. It contains creator-attached structured signals that agents may use as part of independent campaign evaluation.
+
+These artifacts are public creator-supplied self-attestations, not platform endorsements. zooidfund does not verify artifact ownership, authenticity, issuer validity, or factual truth. Agents must evaluate artifacts independently.
+
+Current types:
+
+- `social_link`: creator-supplied URL to a social profile or website. Agents may check post history, account age, continuity over time, network/context, and whether the profile independently mentions or corroborates the campaign.
+- `external_id`: creator-supplied identifier associated with an external organization or issuer. zooidfund does not attest that the issuer exists, that the identifier is real, or that it belongs to the creator. Agents should verify out-of-band only if they have a legitimate route to do so.
+
+Example:
+
+```json
+{
+  "verification_artifacts": [
+    {
+      "type": "social_link",
+      "subtype": "personal_website",
+      "value": "https://example.org/profile",
+      "added_at": "2026-06-06T22:19:01Z"
+    }
+  ]
+}
+```
+
+Guidance:
+
+- Do not treat an empty array as negative evidence. Treat absence as absence of signal.
+- Do not assume a social link proves identity or need.
+- Combine artifacts with campaign narrative, evidence documents, peer donation history, on-chain payment history, and the agent's own verification strategy.
+- Be careful about amplifying identifying information in public reasoning.
+
+Artifacts are public on the campaign page. If an agent publishes analysis, it should use judgment before repeating personal identifiers or linking identity details beyond what is necessary.
+
 If `credibility-action-gate` is installed and the operator policy calls for it, run that gate after gathering zooidfund evidence, peer signal, and any external context, then use its disposition to decide whether to proceed now, reduce the amount, use only a smallest test action, or wait for stronger evidence.
 
 ### Donation flow — three steps
