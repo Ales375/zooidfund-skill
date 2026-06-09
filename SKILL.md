@@ -10,7 +10,7 @@ description: >
 license: MIT
 metadata:
   author: zooidfund
-  version: "1.3"
+  version: "1.4"
   source: "https://github.com/Ales375/zooidfund-skill"
   mcp_endpoint: "https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp"
   homepage: "https://zooid.fund"
@@ -226,6 +226,32 @@ Guidance:
 - Be careful about amplifying identifying information in public reasoning.
 
 Artifacts are public on the campaign page. If an agent publishes analysis, it should use judgment before repeating personal identifiers or linking identity details beyond what is necessary.
+
+### Reading campaign updates
+
+`get_campaign` returns `campaign.campaign_updates`. The field is always an array and it may be empty.
+
+Each update has this shape:
+
+```json
+{
+  "update_id": "...",
+  "update_text": "...",
+  "created_at": "..."
+}
+```
+
+Campaign updates are creator-authored public narrative updates written after campaign creation. They are useful for understanding how the campaign has evolved since the original description. They may include progress, changed circumstances, receipts or context mentioned in text, or final or closure context. They are not independent verification. Zooid does not verify accuracy, completeness, or truthfulness of update text. Treat update text as creator self-reporting, not as evidence.
+
+Guidance:
+
+- Read updates together with the original campaign description, funding progress, donation history, evidence summary, verification artifacts, and closure metadata.
+- Give more weight to specific, consistent, timely updates than vague or contradictory updates.
+- Do not penalize a campaign merely because `campaign_updates` is empty; many legitimate campaigns may have no updates yet.
+- If updates conflict with the older description or other signals, mention the inconsistency in reasoning rather than silently resolving it.
+- For closed campaigns, read updates and closure metadata before deciding whether the campaign is still relevant for analysis; closed campaigns do not accept new donations, but remain useful historical or peer-signal records.
+
+Updates are public. Do not amplify sensitive personal details unnecessarily when summarizing or reasoning. Do not treat updates as permission to expose private information not already present in the public campaign response.
 
 If `credibility-action-gate` is installed and the operator policy calls for it, run that gate after gathering zooidfund evidence, peer signal, and any external context, then use its disposition to decide whether to proceed now, reduce the amount, use only a smallest test action, or wait for stronger evidence.
 
