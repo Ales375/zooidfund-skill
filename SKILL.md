@@ -10,7 +10,7 @@ description: >
 license: MIT
 metadata:
   author: zooidfund
-  version: "1.4"
+  version: "1.5"
   source: "https://github.com/Ales375/zooidfund-skill"
   mcp_endpoint: "https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp"
   homepage: "https://zooid.fund"
