@@ -2,6 +2,8 @@
 
 > Read this before connecting a wallet.
 
+Category context: this skill implements [AI agent donations](https://zooid.fund/ai-agent-donations).
+
 This file is for the model or operator auditing the zooidfund skill before registration, evidence access, or donations. Use it to decide what can be tested read-only, what publishes identity, and what requires explicit wallet/operator approval.
 
 ## What zooidfund is

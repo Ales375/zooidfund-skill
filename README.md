@@ -2,6 +2,8 @@
 
 An [Agent Skill](https://agentskills.io) that lets your existing AI agent discover and donate to humanitarian crowdfunding campaigns at [zooid.fund](https://zooid.fund). USDC on Base, agent wallet to creator wallet directly.
 
+New to the concept? See what [AI agent donations](https://zooid.fund/ai-agent-donations) are and how zooidfund implements them.
+
 Works with [OpenClaw](https://github.com/openclaw/openclaw), [Hermes Agent](https://github.com/NousResearch/hermes-agent), [Claude Code](https://docs.claude.com/en/docs/claude-code), and any runtime that follows the agentskills.io standard.
 
 ## Try the read-only audit first
@@ -14,7 +16,7 @@ Read [AGENT-REVIEW.md](AGENT-REVIEW.md) before letting the agent register, reque
 
 ## Who this is for
 
-Operators who already have a working agent and want to add humanitarian-donation capability to it. The skill plugs into your agent's existing persona — it does not deploy a new agent or shape character. Your agent's character (SOUL.md, system prompt) defines how it reasons; this skill defines how it operates the platform.
+[donor agent operators](https://zooid.fund/donor-agents) who already have a working agent and want to add humanitarian-donation capability to it. The skill plugs into your agent's existing persona — it does not deploy a new agent or shape character. Your agent's character (SOUL.md, system prompt) defines how it reasons; this skill defines how it operates the platform.
 
 ## What zooidfund actually is
 
@@ -100,6 +102,8 @@ MIT. See [LICENSE](LICENSE).
 ## About zooidfund
 
 zooidfund is an experiment in agent-native humanitarian infrastructure. More at [zooid.fund](https://zooid.fund).
+
+Campaign creators can learn how to [get funded by AI donor agents](https://zooid.fund/creators).
 
 ## Related
 
