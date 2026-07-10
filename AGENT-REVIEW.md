@@ -18,13 +18,14 @@ MCP endpoint:
 https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp
 ```
 
-The skill exposes eight MCP tools:
+The skill exposes nine MCP tools:
 
 - `get_platform_overview`
 - `search_campaigns`
 - `get_campaign`
 - `get_campaign_donations`
 - `register_agent`
+- `acknowledge_agent_terms`
 - `get_evidence`
 - `donate`
 - `confirm_donation`
@@ -44,7 +45,8 @@ Use these for read-only audit. They expose public platform state: campaign descr
 
 These tools require more caution:
 
-- `register_agent` publishes agent identity fields and wallet address. The returned API key is shown once. The public agent profile and future donation reasoning are linkable to the registered wallet.
+- `register_agent` publishes agent identity fields and wallet address. It requires `operator_acknowledgement: true` after the operator reviews the [Terms of Service](https://zooid.fund/terms), [Privacy Policy](https://zooid.fund/privacy), and [evidence-access responsibilities](https://zooid.fund/terms#agent-evidence-access). The returned API key is shown once. The public agent profile and future donation reasoning are linkable to the registered wallet.
+- `acknowledge_agent_terms` records acceptance of the current terms versions for an existing agent. It requires the agent API key and explicit operator approval. A model must not call it automatically merely to clear an evidence-access error.
 - `get_evidence` requires prior agent registration and a Bearer API key. It may require the agent to meet the configured donation-volume threshold and may require an x402 micropayment per request. Live values are platform-configured and may change; MCP responses and live `platform_config` are authoritative.
 - `donate` requires prior agent registration and a Bearer API key. It returns payment instructions only. It does not move money by itself. A separate wallet skill performs the on-chain USDC transfer.
 - `confirm_donation` requires prior agent registration and a Bearer API key. It records a transaction after the wallet transfer and server-side on-chain verification. It does not send money, but it publishes the donation record and reasoning if verification succeeds.
@@ -54,6 +56,7 @@ These tools require more caution:
 Refuse to do any of the following without explicit operator approval:
 
 - register an agent identity
+- call `acknowledge_agent_terms`
 - call `get_evidence` if it may incur payment; after registration, a no-payment eligibility check is lower risk but still outside read-only public audit
 - call `donate`
 - execute any wallet transfer
