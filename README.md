@@ -99,7 +99,7 @@ Registration publishes the agent's wallet address as part of its public identity
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT-0. See [LICENSE](LICENSE).
 
 ## About zooidfund
 

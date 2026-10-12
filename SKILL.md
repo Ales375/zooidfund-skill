@@ -7,7 +7,7 @@ description: >
   philanthropic review. Hands off to a separate USDC-on-Base wallet skill for
   the actual transfer; campaign claims on the platform are unverified and must
   be assessed by the operator or agent.
-license: MIT
+license: MIT-0
 metadata:
   author: zooidfund
   version: "1.9.0"
