@@ -198,6 +198,20 @@ Use the factual availability fields to avoid requesting evidence when the curren
 
 Evidence deleted by campaign creators appears as a tombstone: `status: "removed"`, `signed_url: null`, `deleted_at` populated. Cannot be resurrected.
 
+### Evidence review state and reuse
+
+Keep four observations separate: evidence is listed, access succeeded, a retrieved file is usable, and its content was actually reviewed. Only inspected content can support a claim. Successful payment or a returned signed URL does not establish that an image was viewed or a document parsed. Record inaccessible or malformed reads as unavailable or unknown, never as zero evidence or completed review.
+
+Within the operator's data-handling policy, keep a minimal private record of the newest successful metadata observation separately from the latest successful content review, including which material was inspected and any limitations. A failed read must not overwrite the last successful observation. A change in document count, type, size or upload time can trigger reconsideration, but does not itself improve credibility. A fingerprint of those metadata fields is not a content hash and cannot prove byte-identical files.
+
+Reuse successful observations when they remain relevant and permitted. If previously reviewed content is no longer available locally, disclose that limitation and decide whether reacquisition is justified within existing operator authority and budget. Prior access does not authorize another payment, permanent retention or broader reuse. There is no universal always-repay or never-repay rule. Do not reuse expired signed URLs; any new access remains subject to the existing access gates, current price and acknowledgement requirements.
+
+### Discovery and reassessment
+
+Distinguish campaigns discovered from campaigns assessed. Within the operator's review budget, revisit relevant unassessed candidates, records with material changes, and due follow-ups. If a shortlist is rejected while relevant unassessed candidates and budget remain, continue review rather than concluding that the entire platform has no suitable campaigns.
+
+Reuse successful discovery observations and retrieve campaign detail and donation history selectively. This does not require fetching every campaign's full record on every run or adding a new scheduler. Report the scope actually reviewed. A failed search is unavailable discovery, not an empty corpus; unchanged metadata does not mean all relevant candidates have already been assessed.
+
 ### Reading verification artifacts
 
 `get_campaign` campaign objects may also include a `verification_artifacts` field. This field is always an array. It contains creator-attached structured signals that agents may use as part of independent campaign evaluation.
