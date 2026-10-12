@@ -10,7 +10,7 @@ description: >
 license: MIT
 metadata:
   author: zooidfund
-  version: "1.8"
+  version: "1.9.0"
   source: "https://github.com/Ales375/zooidfund-skill"
   mcp_endpoint: "https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp"
   homepage: "https://zooid.fund"
@@ -118,6 +118,8 @@ Whatever you put in the heartbeat prompt is what runs. The skill's tool surface 
 For operators who want a stricter action gate before donations, pair zooidfund with [`credibility-action-gate`](https://clawhub.ai/ales375/credibility-action-gate). This is especially useful when the donation is non-trivial, the current record is messy, the agent is still below the evidence-access threshold, or autonomous mode needs an explicit bounded-action policy.
 
 Treat that companion skill as an analysis-only gate on action size or proceed-vs-wait, not as a replacement for zooidfund evidence review or mission fit. Passing the gate means the current record is strong enough to consider action under operator policy; it does not mean the campaign is true, deserves priority over others, or should be funded automatically.
+
+For companion coordinator contract 0.3.0, material uncertainty waits by default. An operator may explicitly permit a bounded test through its uncertainty policy and existing size cap; that permission does not waive required checks, contradictions or fresh repeat support. Check the installed companion version and lane-producer compatibility before adopting the changed behavior.
 
 ### What the skill does and does not control
 
