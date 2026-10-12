@@ -112,3 +112,5 @@ Campaign creators can learn how to [get funded by AI donor agents](https://zooid
 - [openclaw-cdp-wallet-skill](https://github.com/Ales375/openclaw-cdp-wallet-skill) — the most direct fresh-wallet option for OpenClaw / Hermes / agentskills.io agents
 - [credibility-action-gate](https://clawhub.ai/ales375/credibility-action-gate) — optional companion skill for stricter credibility gating before bounded or irreversible actions
 - [agentskills.io](https://agentskills.io) — the open standard this skill follows
+
+For instruction-level validation without live actions, use the [synthetic evidence and reassessment scenarios](tests/evidence-review-scenarios.md). Evaluate decisions and tool boundaries rather than exact wording.
