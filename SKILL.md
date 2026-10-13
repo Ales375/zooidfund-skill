@@ -10,7 +10,7 @@ description: >
 license: MIT-0
 metadata:
   author: zooidfund
-  version: "1.9.1"
+  version: "1.9.2"
   source: "https://github.com/Ales375/zooidfund-skill"
   mcp_endpoint: "https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp"
   homepage: "https://zooid.fund"
@@ -297,13 +297,17 @@ zooidfund uses a two-step MCP flow plus an off-chain step in the middle. The age
 
 **Step 1 — call `donate`** with `{ campaign_id, amount, reasoning }`. Returns `{ wallet_address, amount, network, currency }` — the creator's wallet, the amount to send, the CAIP-2 network identifier (`eip155:8453` for Base mainnet), the token (`USDC`). No record is created yet; calling `donate` is non-committal.
 
-**Step 2 — send on-chain.** Hand off to whatever USDC-on-Base sender skill is installed (`cdp-wallet`, PayGuard, OnchainKit, or other). Send exactly the amount to exactly the wallet on Base. Keep the intended campaign, recipient, registered sender wallet, network, token and amount together with the returned transaction hash, if one is available, until the payment is resolved.
+**Step 2 — send on-chain.** Hand off to whatever USDC-on-Base sender skill is installed (`cdp-wallet`, PayGuard, OnchainKit, or other). Send exactly the amount to exactly the wallet on Base. Keep the intended campaign, recipient, registered sender wallet, network, token, amount and public reasoning together with any returned transaction hash until the payment is resolved.
 
 **Step 3 — call `confirm_donation`** with `{ campaign_id, amount, reasoning, tx_hash }` — same fields as `donate` plus the hash. The platform reads the transaction from Base and verifies: correct network, correct USDC contract, correct recipient, correct amount, sufficient confirmation, no replay, sender matches the agent's registered `wallet_address`. On success, the donation is recorded, `campaigns.funded_amount` increments, the realtime feed updates.
 
 Returns `{ donation_id, status: "completed", tx_hash }`. A transfer needs successful confirmation or a matching existing record to appear on the feed and count toward the agent's rolling volume. Do not assume a timed-out confirmation failed to record it.
 
-Before any further payment action, reconcile the result of the previous send. If a wallet send times out, including before it returns a hash, use the existing wallet/provider history or Base chain lookup capability to determine whether a transfer was submitted. If that cannot be established, stop this payment and report the unresolved state; a timeout does not authorize another transfer. If `confirm_donation` times out or chain receipt/RPC/confirmation status is pending, keep the **same transaction hash**, recheck its status and retry only `confirm_donation` when appropriate. Never resend USDC just because recording is uncertain. Local notes cannot undo funds already sent.
+Before any further payment action, reconcile the previous send. If the wallet times out before returning a hash, check its existing transaction history or a chain lookup if available. If submission cannot be established, stop and report the payment as unresolved. A timeout never authorizes another transfer.
+
+With a known hash, a `confirm_donation` timeout or generic `Donation transaction could not be verified` response may leave receipt and recording status uncertain. Check `get_campaign_donations` for an existing record. If none matches, make at most two delayed retries of **`confirm_donation` with the original fields and the same hash**; an independent chain lookup is optional, not a prerequisite. If confirmation still does not succeed and no matching record appears, report the transfer as sent but unresolved and stop. Never resend USDC because confirmation is uncertain. Local notes cannot undo funds already sent.
+
+If the campaign closes or becomes ineligible after the send, `confirm_donation` may reject it before checking the hash. Reconcile the intended campaign's public donation history. A matching record resolves the pending donation; otherwise report the transfer as sent but unresolved. Do not treat a post-send closure as a reason to send again.
 
 ### Reasoning strings
 
@@ -313,13 +317,13 @@ Keep private evidence, signed URLs, personal details from restricted material, i
 
 ### tx_hash format
 
-Full transaction hash, 0x-prefixed, 66 characters. Use the wallet-returned hash for `confirm_donation` and any retry of that confirmation; `get_campaign_donations` includes recorded hashes. Use the hash with Base RPC or basescan to verify the transaction.
+Full transaction hash, 0x-prefixed, 66 characters. Use the wallet-returned hash for `confirm_donation` and any retry of that confirmation; `get_campaign_donations` includes recorded hashes. A wallet or Base chain lookup can add context when available, but is not needed to retry confirmation for the same hash.
 
 ### Failure modes worth knowing
 
-- **Transaction verification fails.** The provider may return a generic verification error rather than the underlying receipt or transfer reason. Check the original instruction and chain transaction against the intended sender, recipient, Base network, USDC token and amount. A failed receipt or mismatch is not repaired by reconfirming it or sending again automatically; stop and report it to the operator.
-- **`confirm_donation`: "tx_hash has already been recorded".** This only establishes that the hash is in use; the duplicate response does not verify this request's agent, campaign or amount. Compare the intended donation with `get_campaign_donations` and the original wallet/chain transaction. Campaign history is paginated and does not expose the historical sender or recipient; one page or an absent match does not settle the question. Treat the payment as completed only when the record actually matches the intended campaign and agent, amount, network/token and hash, and wallet/chain evidence confirms the intended sender and recipient. Otherwise stop with an unresolved or conflicting record; do not send again automatically.
-- **`donate` rejection (campaign closed, suspended, or removed).** Re-fetch with `get_campaign` if more than a few minutes have passed since `search_campaigns`; skip if status ≠ `active`.
+- **Transaction verification fails.** The provider may return the same generic error with only `data.tx_hash` for a missing or failed receipt. Use the bounded same-hash confirmation path above when the response is ambiguous. If the response or an available wallet/chain lookup affirmatively shows a failed receipt or wrong sender, recipient, network, USDC token or amount, stop and report the mismatch; reconfirming that transaction cannot fix it.
+- **`confirm_donation`: "tx_hash has already been recorded".** The error returns `data.donation_id` and `data.tx_hash`, but does not match this request's agent, campaign or amount. Use the donation ID to locate the record in the intended campaign's paginated `get_campaign_donations` history. Compare its campaign, agent ID, amount, USDC currency, Base network and hash with the saved intent. A matching provider-recorded donation establishes recording completion without a separate chain lookup. If the record is missing, unavailable or conflicting, report it as unresolved; do not call it success or send again.
+- **`donate` rejection (campaign closed, suspended, or removed).** Before sending, re-fetch with `get_campaign` if more than a few minutes have passed since `search_campaigns`; skip if status ≠ `active`. After sending, use the history reconciliation above instead.
 - **Sanctions screening at the payment skill layer.** CDP and Circle wallets both screen recipient addresses against sanctions lists before submission. A legitimate creator's wallet is almost never flagged, but if it is, the send fails before reaching the chain. Skip that campaign rather than work around the check.
 - **`get_evidence` returns `payment_required` but the agent has no x402 client.** The agent has crossed the volume threshold but its wallet skill only sends plain USDC; it cannot satisfy x402 negotiation. The agent should report this to the operator and continue evaluating from prose only. The fix is operator-side: install or upgrade to a wallet skill that supports x402.
 - **`get_evidence` returns `operator_acknowledgement_required`.** Stop the run and show the operator the document links in the response. Only after explicit approval, call `acknowledge_agent_terms` with `operator_acknowledgement: true`, then retry `get_evidence` once. Do not silently acknowledge or continue into paid evidence access.
