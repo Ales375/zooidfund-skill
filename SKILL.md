@@ -297,11 +297,13 @@ zooidfund uses a two-step MCP flow plus an off-chain step in the middle. The age
 
 **Step 1 — call `donate`** with `{ campaign_id, amount, reasoning }`. Returns `{ wallet_address, amount, network, currency }` — the creator's wallet, the amount to send, the CAIP-2 network identifier (`eip155:8453` for Base mainnet), the token (`USDC`). No record is created yet; calling `donate` is non-committal.
 
-**Step 2 — send on-chain.** Hand off to whatever USDC-on-Base sender skill is installed (`cdp-wallet`, PayGuard, OnchainKit, or other). Send exactly the amount to exactly the wallet on Base. Capture the resulting transaction hash.
+**Step 2 — send on-chain.** Hand off to whatever USDC-on-Base sender skill is installed (`cdp-wallet`, PayGuard, OnchainKit, or other). Send exactly the amount to exactly the wallet on Base. Keep the intended campaign, recipient, registered sender wallet, network, token and amount together with the returned transaction hash, if one is available, until the payment is resolved.
 
 **Step 3 — call `confirm_donation`** with `{ campaign_id, amount, reasoning, tx_hash }` — same fields as `donate` plus the hash. The platform reads the transaction from Base and verifies: correct network, correct USDC contract, correct recipient, correct amount, sufficient confirmation, no replay, sender matches the agent's registered `wallet_address`. On success, the donation is recorded, `campaigns.funded_amount` increments, the realtime feed updates.
 
-Returns `{ donation_id, status: "completed", tx_hash }`. Skipping `confirm_donation` means the donation exists on-chain but never appears on the feed and never counts toward the agent's rolling volume — so don't skip it.
+Returns `{ donation_id, status: "completed", tx_hash }`. A transfer needs successful confirmation or a matching existing record to appear on the feed and count toward the agent's rolling volume. Do not assume a timed-out confirmation failed to record it.
+
+Before any further payment action, reconcile the result of the previous send. If a wallet send times out, including before it returns a hash, use the existing wallet/provider history or Base chain lookup capability to determine whether a transfer was submitted. If that cannot be established, stop this payment and report the unresolved state; a timeout does not authorize another transfer. If `confirm_donation` times out or chain receipt/RPC/confirmation status is pending, keep the **same transaction hash**, recheck its status and retry only `confirm_donation` when appropriate. Never resend USDC just because recording is uncertain. Local notes cannot undo funds already sent.
 
 ### Reasoning strings
 
@@ -311,14 +313,12 @@ Keep private evidence, signed URLs, personal details from restricted material, i
 
 ### tx_hash format
 
-Full transaction hash, 0x-prefixed, 66 characters. Same in `donate`/`confirm_donation` flows and in `get_campaign_donations` responses. Use it directly with Base RPC or basescan to verify.
+Full transaction hash, 0x-prefixed, 66 characters. Use the wallet-returned hash for `confirm_donation` and any retry of that confirmation; `get_campaign_donations` includes recorded hashes. Use the hash with Base RPC or basescan to verify the transaction.
 
 ### Failure modes worth knowing
 
-- **`confirm_donation`: "Transaction sender does not match agent wallet_address".** The wallet that sent the USDC is different from the one registered. Common when the operator runs multiple wallets or migrates between sender skills. The agent should report this to the operator; the skill cannot fix it.
-- **`confirm_donation`: "Transaction does not contain the required USDC transfer to the campaign creator wallet".** Wrong address, wrong token, wrong network, wrong amount. Re-read the `donate` response and retry rather than guess.
-- **`confirm_donation`: "tx_hash has already been recorded".** Already confirmed. Treat as success.
-- **Base RPC latency on `confirm_donation`.** Public Base RPC can lag by a few seconds after a send. Retry with exponential backoff (e.g., 5s, 15s, 45s) before treating as a real failure.
+- **Transaction verification fails.** The provider may return a generic verification error rather than the underlying receipt or transfer reason. Check the original instruction and chain transaction against the intended sender, recipient, Base network, USDC token and amount. A failed receipt or mismatch is not repaired by reconfirming it or sending again automatically; stop and report it to the operator.
+- **`confirm_donation`: "tx_hash has already been recorded".** This only establishes that the hash is in use; the duplicate response does not verify this request's agent, campaign or amount. Compare the intended donation with `get_campaign_donations` and the original wallet/chain transaction. Campaign history is paginated and does not expose the historical sender or recipient; one page or an absent match does not settle the question. Treat the payment as completed only when the record actually matches the intended campaign and agent, amount, network/token and hash, with available wallet/chain evidence for sender and recipient. Otherwise stop with an unresolved or conflicting record; do not send again automatically.
 - **`donate` rejection (campaign closed, suspended, or removed).** Re-fetch with `get_campaign` if more than a few minutes have passed since `search_campaigns`; skip if status ≠ `active`.
 - **Sanctions screening at the payment skill layer.** CDP and Circle wallets both screen recipient addresses against sanctions lists before submission. A legitimate creator's wallet is almost never flagged, but if it is, the send fails before reaching the chain. Skip that campaign rather than work around the check.
 - **`get_evidence` returns `payment_required` but the agent has no x402 client.** The agent has crossed the volume threshold but its wallet skill only sends plain USDC; it cannot satisfy x402 negotiation. The agent should report this to the operator and continue evaluating from prose only. The fix is operator-side: install or upgrade to a wallet skill that supports x402.
