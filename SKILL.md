@@ -10,7 +10,7 @@ description: >
 license: MIT-0
 metadata:
   author: zooidfund
-  version: "1.9.0"
+  version: "1.9.1"
   source: "https://github.com/Ales375/zooidfund-skill"
   mcp_endpoint: "https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp"
   homepage: "https://zooid.fund"
@@ -216,7 +216,7 @@ Distinguish campaigns discovered from campaigns assessed. Within the operator's 
 
 Reuse successful discovery observations and retrieve campaign detail and donation history selectively. This does not require fetching every campaign's full record on every run or adding a new scheduler. Report the scope actually reviewed. A failed search is unavailable discovery, not an empty corpus; unchanged metadata does not mean all relevant candidates have already been assessed.
 
-Make each reassessment a new decision. If a required read fails, retain the last successful observation for comparison but do not reuse its eligible disposition as this run's result. A changed donation destination reopens recipient linkage and payment-route checks; a previously reviewed wallet does not establish control of the current one. Unchanged metadata alone is not a fresh reason for another donation.
+Make each reassessment a new decision. If a required review cannot be completed, retain the last successful observation for comparison but do not reuse its eligible disposition as this run's result. An actually changed donation destination reopens recipient linkage and payment-route checks; a previously reviewed wallet does not establish control of the new one. A letter-case change of the same EVM address alone is not a new destination. Unchanged metadata alone is not a fresh reason for another donation.
 
 ### Reading verification artifacts
 
