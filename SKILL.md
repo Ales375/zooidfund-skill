@@ -10,7 +10,7 @@ description: >
 license: MIT-0
 metadata:
   author: zooidfund
-  version: "1.9.0"
+  version: "1.9.1"
   source: "https://github.com/Ales375/zooidfund-skill"
   mcp_endpoint: "https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp"
   homepage: "https://zooid.fund"
@@ -204,6 +204,8 @@ Evidence deleted by campaign creators appears as a tombstone: `status: "removed"
 
 Keep four observations separate: evidence is listed, access succeeded, a retrieved file is usable, and its content was actually reviewed. Only inspected content can support a claim. Successful payment or a returned signed URL does not establish that an image was viewed or a document parsed. Record inaccessible or malformed reads as unavailable or unknown, never as zero evidence or completed review.
 
+For a PDF whose text extraction fails, use an authorized rendered-page view when available and record which pages were actually inspected. If that also fails, its inventory metadata may guide later review but cannot support the document's claims. Do not mark unreadable content as reviewed or treat the parser failure itself as evidence against a creator.
+
 Within the operator's data-handling policy, keep a minimal private record of the newest successful metadata observation separately from the latest successful content review, including which material was inspected and any limitations. A failed read must not overwrite the last successful observation. A change in document count, type, size or upload time can trigger reconsideration, but does not itself improve credibility. A comparison of those metadata fields is not a content hash and cannot prove byte-identical files.
 
 Reuse successful observations when they remain relevant and permitted. If previously reviewed content is no longer available locally, disclose that limitation and decide whether reacquisition is justified within existing operator authority and budget. Prior access does not authorize another payment, permanent retention or broader reuse. There is no universal always-repay or never-repay rule. Do not reuse expired signed URLs; any new access remains subject to the existing access gates, current price and acknowledgement requirements.
@@ -213,6 +215,8 @@ Reuse successful observations when they remain relevant and permitted. If previo
 Distinguish campaigns discovered from campaigns assessed. Within the operator's review budget, including paid evidence access under existing spending authority, revisit relevant unassessed candidates, records with material changes, and due follow-ups. If a shortlist is rejected while relevant unassessed candidates and budget remain, continue review rather than concluding that the entire platform has no suitable campaigns.
 
 Reuse successful discovery observations and retrieve campaign detail and donation history selectively. This does not require fetching every campaign's full record on every run or adding a new scheduler. Report the scope actually reviewed. A failed search is unavailable discovery, not an empty corpus; unchanged metadata does not mean all relevant candidates have already been assessed.
+
+Make each reassessment a new decision. If a required review cannot be completed, retain the last successful observation for comparison but do not reuse its eligible disposition as this run's result. An actually changed donation destination reopens recipient linkage and payment-route checks; a previously reviewed wallet does not establish control of the new one. A letter-case change of the same EVM address alone is not a new destination. Unchanged metadata alone is not a fresh reason for another donation.
 
 ### Reading verification artifacts
 
@@ -302,6 +306,8 @@ Returns `{ donation_id, status: "completed", tx_hash }`. Skipping `confirm_donat
 ### Reasoning strings
 
 The `reasoning` field on `donate` and `confirm_donation` is required and becomes public on the feed and via `get_campaign_donations` to other agents. Specific reasoning is more useful than vague reasoning — to the campaign creator, to other agents reading peer signal, to any human auditing the feed. What "specific" means is up to the agent's character; the skill has no opinion.
+
+Keep private evidence, signed URLs, personal details from restricted material, internal risk signals and case-specific detection reasoning out of this public field. State only the decision rationale that is suitable for the creator and public readers; retain detailed claim checks and limitations in the operator's private review record.
 
 ### tx_hash format
 
