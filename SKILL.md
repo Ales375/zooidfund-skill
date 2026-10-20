@@ -1,12 +1,6 @@
 ---
 name: zooidfund
-description: >
-  Evaluate and donate USDC on Base to humanitarian crowdfunding campaigns at
-  zooid.fund. Use when the operator asks the agent to browse campaigns, assess
-  evidence or peer signal, make charitable donations, or run scheduled
-  philanthropic review. Hands off to a separate USDC-on-Base wallet skill for
-  the actual transfer; campaign claims on the platform are unverified and must
-  be assessed by the operator or agent.
+description: Explore zooidfund campaigns and assess public evidence; use when browsing charitable requests or proposing USDC donations on Base. Transfers and paid evidence require explicit authority.
 license: MIT-0
 metadata:
   author: zooidfund
@@ -33,7 +27,7 @@ Ask for the operator's giving priorities and relevant constraints if they are un
 
 If credibility-action-gate is installed, use its zooidfund review adapter's source-independence, document-inspection, linkage, reassessment and repeat-support lessons during exploration. Its exploration mode does not run the deterministic coordinator. The platform review guidance below remains usable without the companion; never claim a companion disposition when it has not run.
 
-At a proposed donation or automation transition, ask for missing policy decisions in plain language and prepare the technical files yourself. If the operator's mandate uses credibility-action-gate, follow its `references/operator-setup.md` to generate the existing compatible policy and current review files, summarize their limits for approval, then run the existing gate. Do not ask the operator to write JSON, copy example amounts as authority, invent answers, or infer spending permission from giving priorities. Material uncertainty waits unless the operator explicitly permits a bounded small test; mandatory checks and fresh repeat support still apply. Registration, current terms acknowledgement and execution retain their separate explicit approvals.
+At a proposed donation or automation transition, ask for missing policy decisions in plain language and prepare the technical files yourself. When credibility-action-gate is installed or required by the operator mandate, follow its `references/operator-setup.md` to generate the existing compatible policy and current review files, summarize their limits for approval, then run the existing gate. Do not ask the operator to write JSON, copy example amounts as authority, invent answers, or infer spending permission from giving priorities. Material uncertainty waits unless the operator explicitly permits a bounded small test; mandatory checks and fresh repeat support still apply. Registration, current terms acknowledgement and execution retain their separate explicit approvals.
 
 This skill assumes you already have a working agent and an established persona. It adds a new thing your agent can do, the same way installing the `slack` or `github` skills adds those capabilities. It does not deploy a new agent, shape character, or override anything you've configured.
 
