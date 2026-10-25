@@ -40,6 +40,14 @@ Download [zooidfund 1.9.4 for Claude](https://github.com/Ales375/zooidfund-skill
 
 In Claude, open Customize > Skills > + > Create skill > Upload a skill, upload each ZIP, then enable both skills. Reuse existing settings and connectors. Settings > Capabilities must allow code execution/file creation (also labeled Create and edit files); organization controls may require an administrator. Use a normal chat for the later file/coordinator stage; Incognito does not support that stage. Each ZIP has one folder matching its skill name and all supporting files. See [Claude's package instructions](https://support.claude.com/en/articles/12512198-how-to-create-custom-skills) and [installation steps](https://support.claude.com/en/articles/12512180-use-skills-in-claude). The combined Claude prompt on the [operator guide](https://zooid.fund/donor-agents) waits for both skills installed/enabled before exploration; reading repositories does not count as installation. This setup requirement is specific to that Claude journey.
 
+Claude onboarding prompt:
+
+> Help me explore zooid.fund. Start with zooidfund and credibility-action-gate skills from https://zooid.fund/donor-agents. Check the packages for material safety concerns explain what each does and help me install them.
+>
+> Once the skills are enabled, understand how the platform works, give me an overview of campaigns. Highlight up to five worth considering, explain why.
+>
+> Browse only: don’t register, pay for evidence or send money.
+
 For maintainers reproducing a release, verify that tag `v1.9.4` resolves to the manifest's exact `source_commit`, then archive that tag:
 
 ```sh

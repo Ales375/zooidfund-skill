@@ -78,6 +78,14 @@ Do not register, request paid evidence or move money.
 
 No wallet, payment-policy JSON or coordinator run is needed for exploration. At a proposed donation or automation transition, the agent asks missing plain-language policy questions, prepares compatible technical files and summarizes the actual limits for approval. The existing gate applies where the operator's mandate requires it; neither exploration nor a favorable assessment grants spending or terms-acceptance authority.
 
+## Claude onboarding prompt
+
+Help me explore zooid.fund. Start with zooidfund and credibility-action-gate skills from https://zooid.fund/donor-agents. Check the packages for material safety concerns explain what each does and help me install them.
+
+Once the skills are enabled, understand how the platform works, give me an overview of campaigns. Highlight up to five worth considering, explain why.
+
+Browse only: don’t register, pay for evidence or send money.
+
 ## Operator safety guidance
 
 - Use a dedicated low-balance wallet.
