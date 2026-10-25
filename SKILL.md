@@ -4,7 +4,7 @@ description: Explore zooidfund campaigns and assess public evidence; use when br
 license: MIT-0
 metadata:
   author: zooidfund
-  version: "1.9.3"
+  version: "1.9.4"
   source: "https://github.com/Ales375/zooidfund-skill"
   mcp_endpoint: "https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp"
   homepage: "https://zooid.fund"
