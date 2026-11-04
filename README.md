@@ -36,27 +36,17 @@ This is structural, not a temporary state. Read the [SKILL.md](SKILL.md) before 
 
 ### Claude app (chat and desktop)
 
-Download [zooidfund 1.9.4 for Claude](https://github.com/Ales375/zooidfund-skill/releases/download/v1.9.4/zooidfund-1.9.4.zip) and [credibility-action-gate 2.0.3 for Claude](https://github.com/Ales375/credibility-action-gate/releases/download/v2.0.3/credibility-action-gate-2.0.3.zip). Use these complete packages, not GitHub's source ZIP or a lone Markdown file. You do not need to clone, build or test the repositories. If a download is unavailable, stop setup and report the missing asset; do not substitute an older version or manual assessment guidance.
+Download the official complete [zooidfund 1.9.5 ZIP](https://github.com/Ales375/zooidfund-skill/releases/download/v1.9.5/zooidfund-1.9.5.zip). It contains one `zooidfund/` folder and all supporting files. Inspect it for material concerns; installation does not require cloning, rebuilding or running tests. Do not substitute GitHub's source ZIP or a lone Markdown file. If the official download is unavailable, stop setup and report it.
 
-In Claude, open Customize > Skills > + > Create skill > Upload a skill, upload each ZIP, then enable both skills. Reuse existing settings and connectors. Settings > Capabilities must allow code execution/file creation (also labeled Create and edit files); organization controls may require an administrator. Use a normal chat for the later file/coordinator stage; Incognito does not support that stage. Each ZIP has one folder matching its skill name and all supporting files. See [Claude's package instructions](https://support.claude.com/en/articles/12512198-how-to-create-custom-skills) and [installation steps](https://support.claude.com/en/articles/12512180-use-skills-in-claude). The combined Claude prompt on the [operator guide](https://zooid.fund/donor-agents) waits for both skills installed/enabled before exploration; reading repositories does not count as installation. This setup requirement is specific to that Claude journey.
+Use the [operator guide](https://zooid.fund/donor-agents) for the maintained Claude onboarding prompt, companion download and current upload/connector steps. The operator uploads/enables the skills and confirms readiness. This Claude journey distinguishes installed skills usable in the current conversation from uploaded artifacts or a connector alone; the guide covers the fallback when access is missing. Existing Hermes/OpenClaw and MCP-only routes below do not acquire a universal companion prerequisite.
 
-Claude onboarding prompt:
-
-> Help me explore zooid.fund. Start with zooidfund and credibility-action-gate skills from https://zooid.fund/donor-agents. Check the packages for material safety concerns explain what each does and help me install them.
->
-> Once the skills are enabled, understand how the platform works, give me an overview of campaigns. Highlight up to five worth considering, explain why.
->
-> Browse only: don’t register, pay for evidence or send money.
-
-For maintainers reproducing a release, verify that tag `v1.9.4` resolves to the manifest's exact `source_commit`, then archive that tag:
+For maintainers reproducing this release, first check that `v1.9.5` resolves to the manifest's exact source commit:
 
 ```sh
-git -c core.autocrlf=false archive --format=zip --prefix=zooidfund/ --output=zooidfund-1.9.4.zip v1.9.4 SKILL.md AGENT-REVIEW.md README.md LICENSE tests
+git -c core.autocrlf=false archive --format=zip --prefix=zooidfund/ --output=zooidfund-1.9.5.zip v1.9.5 SKILL.md AGENT-REVIEW.md README.md LICENSE tests
 ```
 
-The release tag must point to the exact reviewed source commit used for the ZIP, not a later merge/squash commit. The archive's commit comment, manifest `source_commit`, tag target and ZIP SHA-256 must agree. Publish the ZIP with `zooidfund-1.9.4.manifest.json`. The repository's Releases page is authoritative for available downloads. Publish and anonymously verify both packages before merging README or website changes that advertise them.
-
-The skill supplies instructions; it does not add the MCP connector automatically. In Claude, add a custom remote connector named `zooidfund` under Customize > Connectors, using `https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp`. For public exploration choose No sign in and no credential headers, then enable the connector in the conversation. On Team plans, an Owner or Primary Owner must add it to the organization first; Enterprise also permits a custom role with Manage access to Libraries. Members then connect and enable it individually. The agent supplies these fields and checks available tools; you approve the account UI. See [Claude's remote connector instructions](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp). If connection is unavailable, the agent reports the limitation and does not invent live results.
+Publish the ZIP with `zooidfund-1.9.5.manifest.json`. The tag target, archive commit comment and manifest source must name the same reviewed commit, not a later merge/squash commit; verify the ZIP hash. Releases is authoritative for available downloads. Publish and anonymously verify both packages before merging README/site changes that advertise them.
 
 ### OpenClaw
 
@@ -74,13 +64,7 @@ cd ~/.hermes/skills
 git clone https://github.com/Ales375/zooidfund-skill zooidfund
 ```
 
-Plus an MCP server entry in `~/.hermes/config.yaml`:
-
-```yaml
-mcp_servers:
-  zooidfund:
-    url: "https://fcefnmdlggldmfusydix.supabase.co/functions/v1/mcp"
-```
+Then connect the public tools using the [Hermes MCP setup instructions in SKILL.md](SKILL.md#hermes-agent-mcp-configuration). Keep existing credentials and stricter local controls; public browsing needs no registration.
 
 ### Other runtimes
 
