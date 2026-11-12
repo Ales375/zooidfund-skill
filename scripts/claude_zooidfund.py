@@ -28,6 +28,8 @@ ADDRESS = r"0x[0-9a-fA-F]{40}"
 HASH = r"0x[0-9a-fA-F]{64}"
 UUID = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
 MAX_BODY = 2 * 1024 * 1024
+REGISTRATION_STAGE = "registration-recovery.json"
+SAVED_CREDENTIAL = "agent.json"
 
 
 class Stop(Exception):
@@ -136,6 +138,8 @@ def mcp(name, args, token):
             raise Stop("mcp_response_uncertain")
         payload = json.loads(content[0]["text"], parse_float=Decimal)
     if result.get("isError") is True:
+        if name == "register_agent" and payload.get("error") == "register_agent proxy failed with status 409":
+            raise Stop("wallet_already_registered_restore_existing_identity")
         if payload.get("error") == "Unauthorized. Provide Authorization: Bearer <agent_api_key>.":
             raise Stop("credential_rejected")
         if name == "confirm_donation" and payload.get("error") == "tx_hash has already been recorded":
@@ -144,6 +148,65 @@ def mcp(name, args, token):
                 return {"duplicate_donation_id": checked(details.get("donation_id"), UUID)}
         raise Stop("mcp_tool_rejected_check_existing_flow")
     return payload
+
+
+def finish_registration(root, wallet):
+    staged = root / REGISTRATION_STAGE
+    try:
+        _, agent, saved_wallet = credential(staged)
+    except (Stop, OSError, ValueError, TypeError, AttributeError):
+        raise Stop("registration_recovery_unavailable") from None
+    if saved_wallet != wallet:
+        raise Stop("wallet_mismatch")
+    try:
+        with private(staged).open("r+b") as stream:
+            os.fsync(stream.fileno())
+        os.link(staged, root / SAVED_CREDENTIAL)
+    except FileExistsError:
+        raise Stop("existing_credential_use_saved_identity") from None
+    except OSError:
+        raise Stop("registration_credential_staged_recover_locally") from None
+    try:
+        staged.unlink()
+    except OSError:
+        return {"status": "registered_credential_saved", "agent_id": agent, "staged_copy_remains": True}
+    return {"status": "registered_credential_saved", "agent_id": agent}
+
+
+def register(root, args):
+    wallet = checked(args.wallet, ADDRESS).lower()
+    if args.credential is not None or os.path.lexists(root / SAVED_CREDENTIAL):
+        raise Stop("existing_credential_use_saved_identity")
+    if args.command == "recover-registration":
+        return finish_registration(root, wallet)
+    name, mission = args.display_name.strip(), args.mission.strip()
+    if not name or not mission or not args.operator_acknowledgement:
+        raise Stop("registration_identity_and_approval_required")
+    try:
+        descriptor = os.open(root / REGISTRATION_STAGE, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        raise Stop("registration_already_attempted_recover_or_check_identity") from None
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            result = mcp("register_agent", {
+                "display_name": name, "mission": mission, "wallet_address": wallet,
+                "operator_acknowledgement": True,
+            }, None)
+            record = {
+                "api_key": checked(result.get("api_key"), UUID),
+                "agent_id": checked(result.get("agent_id"), UUID),
+                "wallet_address": wallet,
+            }
+            stream.write(json.dumps(record).encode())
+            stream.flush()
+            os.fsync(stream.fileno())
+    except Stop as exc:
+        if str(exc) == "wallet_already_registered_restore_existing_identity":
+            raise
+        raise Stop("registration_unresolved_check_existing_identity_without_retry") from None
+    except (HTTPException, OSError, ValueError, TypeError, KeyError, AttributeError, IndexError):
+        raise Stop("registration_unresolved_check_existing_identity_without_retry") from None
+    return finish_registration(root, wallet)
 
 
 def evidence_urls(campaign):
@@ -429,11 +492,13 @@ def donation(args, token, payer):
 
 def run(args):
     root = private(args.state, directory=True)
+    if args.command in ("register", "recover-registration"):
+        return register(root, args)
     if args.command == "init":
         ledger(root, create=True).close()
         return {"status": "ledger_initialized"}
     if args.command in ("donate", "confirm-donation", "prepare", "submit"):
-        identity = credential(args.credential)
+        identity = credential(args.credential if args.credential is not None else root / SAVED_CREDENTIAL)
         if checked(args.wallet, ADDRESS).lower() != identity[2]:
             raise Stop("wallet_mismatch")
         if args.command in ("donate", "confirm-donation"):
@@ -471,6 +536,11 @@ def main(argv=None):
     parser.add_argument("--credential", type=Path)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
+    registration = commands.add_parser("register")
+    registration.add_argument("--operator-acknowledgement", action="store_true", required=True)
+    for field in ("wallet", "display-name", "mission"):
+        registration.add_argument("--" + field, required=True)
+    commands.add_parser("recover-registration").add_argument("--wallet", required=True)
     for name in ("donate", "confirm-donation", "prepare", "submit", "status", "reconcile",
                  "close-expired", "fetch-document", "quarantine-restored", "close-unpaid"):
         command = commands.add_parser(name)

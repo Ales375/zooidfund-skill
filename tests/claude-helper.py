@@ -10,6 +10,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location("helper", Path(__file__).parents[1] / "scripts/claude_zooidfund.py")
 helper = importlib.util.module_from_spec(spec)
@@ -21,6 +22,7 @@ OTHER = "32345678-1234-4234-8234-123456789abc"
 PAYER, PAYEE = "0x" + "11" * 20, "0x" + "22" * 20
 TX = "0x" + "33" * 32
 TOKEN = "fixture-only-agent-credential"
+REGISTRATION_KEY = "42345678-1234-4234-8234-123456789abc"
 SIGNATURE = "0x" + "44" * 224
 PRIVATE = "fixture-private-response-marker"
 
@@ -103,12 +105,23 @@ class HelperTests(unittest.TestCase):
             }}
         elif req.path.startswith("/storage/"):
             data = {"document": PRIVATE}
-        elif req.headers.get("Authorization") != "Bearer " + TOKEN:
-            status = 401
         elif req.path.endswith("/mcp"):
             envelope = json.loads(req.rfile.read(int(req.headers["Content-Length"])))
             name = envelope["params"]["name"]
-            if self.mode == "deny":
+            if name == "register_agent":
+                self.registration_args = envelope["params"]["arguments"]
+                if self.mode == "disconnect":
+                    self.close_connection = True
+                    return
+                conflict = self.mode == "wallet-conflict"
+                response = ({"error": "register_agent proxy failed with status 409",
+                             "data": {"error": PRIVATE}}
+                            if conflict else {"agent_id": OTHER, "api_key": REGISTRATION_KEY})
+                self.send_json(req, 200, {}, {"jsonrpc": "2.0", "id": 1, "result": {
+                    "structuredContent": response, "isError": conflict,
+                }})
+                return
+            if req.headers.get("Authorization") not in ("Bearer " + TOKEN, "Bearer " + REGISTRATION_KEY) or self.mode == "deny":
                 status = 401
             if name == "donate":
                 response = {"wallet_address": PAYEE, "amount": 2, "network": helper.NETWORK, "currency": "USDC"}
@@ -125,6 +138,8 @@ class HelperTests(unittest.TestCase):
                 if self.mode == "auth-tool-denial":
                     response = {"eligibility_status": "not_eligible", "reason": "missing_or_invalid_agent_authorization"}
             data = {"jsonrpc": "2.0", "id": 1, "result": {"structuredContent": response}}
+        elif req.headers.get("Authorization") != "Bearer " + TOKEN:
+            status = 401
         elif req.headers.get("PAYMENT-SIGNATURE"):
             self.payload = json.loads(base64.b64decode(req.headers["PAYMENT-SIGNATURE"]))
             if self.mode == "disconnect":
@@ -165,14 +180,78 @@ class HelperTests(unittest.TestCase):
     def header(value):
         return base64.b64encode(json.dumps(value).encode()).decode()
 
-    def cli(self, command, *args, root=None):
+    def cli(self, command, *args, root=None, explicit_credential=True):
         stdout = io.StringIO()
+        base = ["--state", str(root or self.root)]
+        if explicit_credential:
+            base += ["--credential", str(self.credential)]
         with contextlib.redirect_stdout(stdout):
-            helper.main(["--state", str(root or self.root), "--credential", str(self.credential), command, *args])
+            helper.main([*base, command, *args])
         out = stdout.getvalue()
-        for hidden in (TOKEN, SIGNATURE, PRIVATE):
+        for hidden in (TOKEN, REGISTRATION_KEY, SIGNATURE, PRIVATE):
             self.assertNotIn(hidden, out)
         return json.loads(out)
+
+    def registration(self, *args):
+        return self.cli("register", "--wallet", PAYER, "--display-name", "Fixture name",
+                        "--mission", "Fixture mission", *args, explicit_credential=False)
+
+    def test_registration_saves_credential_for_returning_calls(self):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+            self.registration()
+        self.assertEqual(raised.exception.code, 2)
+        self.assertNotIn(REGISTRATION_KEY, stderr.getvalue())
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.cli("register", "--wallet", PAYER, "--display-name", " ",
+                                  "--mission", "Fixture mission", "--operator-acknowledgement",
+                                  explicit_credential=False)["status"],
+                         "registration_identity_and_approval_required")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.registration("--operator-acknowledgement"),
+                         {"status": "registered_credential_saved", "agent_id": OTHER})
+        self.assertEqual(self.registration_args, {"wallet_address": PAYER, "display_name": "Fixture name",
+                                                 "mission": "Fixture mission", "operator_acknowledgement": True})
+        self.assertEqual(self.calls, [(helper.FUNCTIONS + "/mcp", None)])
+        self.assertEqual(helper.credential(self.root / helper.SAVED_CREDENTIAL), (REGISTRATION_KEY, OTHER, PAYER))
+        self.assertFalse((self.root / helper.REGISTRATION_STAGE).exists())
+        self.assertEqual(self.registration("--operator-acknowledgement")["status"],
+                         "existing_credential_use_saved_identity")
+        result = self.cli("donate", "--campaign", CAMPAIGN, "--recipient", PAYEE, "--wallet", PAYER,
+                          "--amount", "2", "--reasoning", "Fixture reasoning", explicit_credential=False)
+        self.assertEqual(result["status"], "instructions")
+        self.assertEqual(self.calls[-1][1], "Bearer " + REGISTRATION_KEY)
+
+    def test_registration_conflict_keeps_existing_identity(self):
+        self.mode = "wallet-conflict"
+        self.assertEqual(self.registration("--operator-acknowledgement")["status"],
+                         "wallet_already_registered_restore_existing_identity")
+        self.assertFalse((self.root / helper.SAVED_CREDENTIAL).exists())
+        self.assertEqual(self.registration("--operator-acknowledgement")["status"],
+                         "registration_already_attempted_recover_or_check_identity")
+        self.assertEqual(len(self.calls), 1)
+
+    def test_registration_disconnect_stops_repeat_and_local_recovery(self):
+        self.mode = "disconnect"
+        self.assertEqual(self.registration("--operator-acknowledgement")["status"],
+                         "registration_unresolved_check_existing_identity_without_retry")
+        self.assertEqual(self.registration("--operator-acknowledgement")["status"],
+                         "registration_already_attempted_recover_or_check_identity")
+        self.assertEqual(self.cli("recover-registration", "--wallet", PAYER, explicit_credential=False)["status"],
+                         "registration_recovery_unavailable")
+        self.assertEqual(len(self.calls), 1)
+
+    def test_registration_save_failure_recovers_privately_without_http(self):
+        with patch.object(helper.os, "link", side_effect=OSError(PRIVATE)):
+            self.assertEqual(self.registration("--operator-acknowledgement")["status"],
+                             "registration_credential_staged_recover_locally")
+        self.assertEqual(helper.credential(self.root / helper.REGISTRATION_STAGE), (REGISTRATION_KEY, OTHER, PAYER))
+        self.assertEqual(self.cli("recover-registration", "--wallet", PAYEE, explicit_credential=False)["status"],
+                         "wallet_mismatch")
+        self.assertEqual(self.cli("recover-registration", "--wallet", PAYER, explicit_credential=False)["status"],
+                         "registered_credential_saved")
+        self.assertEqual(helper.credential(self.root / helper.SAVED_CREDENTIAL), (REGISTRATION_KEY, OTHER, PAYER))
+        self.assertEqual(len(self.calls), 1)
 
     def prepare(self, *, wallet=PAYER):
         return self.cli("prepare", "--operation", OP, "--campaign", CAMPAIGN,
