@@ -359,6 +359,19 @@ def transfer_topics(payer, payee):
     return [TRANSFER, "0x" + payer[2:].zfill(64), "0x" + payee[2:].zfill(64)]
 
 
+def donation_candidates(logs, amount):
+    # The provider can accept a one-minor-unit difference. Refuse a receipt
+    # with multiple candidates so a changed campaign wallet cannot select another transfer.
+    candidates = []
+    for log in logs:
+        topics, data = log.get("topics") or [], log.get("data", "")
+        if (log.get("address", "").lower() == USDC and log.get("removed") is not True
+                and topics and topics[0].lower() == TRANSFER and re.fullmatch(r"0x[0-9a-fA-F]+", data)
+                and abs(int(data, 16) - amount) <= 1):
+            candidates.append(log)
+    return candidates
+
+
 def reconcile(db, operation, tx):
     intent, state, existing = attempt(db, operation)
     if state == "paid":
@@ -387,7 +400,8 @@ def donation(args, token, payer):
     if args.command == "confirm-donation":
         tx = checked(args.tx, HASH).lower()
         topics = transfer_topics(payer, recipient)
-        if not any(usdc_event(log, topics, "0x" + format(amount, "064x")) for log in matching_receipt(tx)):
+        candidates = donation_candidates(matching_receipt(tx), amount)
+        if len(candidates) != 1 or not usdc_event(candidates[0], topics, "0x" + format(amount, "064x")):
             raise Stop("donation_receipt_does_not_match_reviewed_transfer")
         result = mcp("confirm_donation", {**payload, "tx_hash": tx}, token)
         if "duplicate_donation_id" in result:

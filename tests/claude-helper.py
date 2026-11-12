@@ -44,6 +44,7 @@ class HelperTests(unittest.TestCase):
         self.finalized_time = 0
         self.authorization_used = False
         self.network = helper.NETWORK
+        self.ambiguous_donation = False
         test = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -87,6 +88,10 @@ class HelperTests(unittest.TestCase):
                 {"address": helper.USDC, "topics": [helper.TRANSFER, payer, payee],
                  "data": "0x" + format(10000 if self.payload else 2000000, "064x")},
             ]
+            if self.ambiguous_donation:
+                logs.append({"address": helper.USDC,
+                             "topics": helper.transfer_topics(PAYER, PAYER),
+                             "data": "0x" + format(2000001, "064x")})
             if self.payload:
                 nonce = self.payload["payload"]["authorization"]["nonce"]
                 logs.insert(0, {"address": helper.USDC, "topics": [helper.AUTH_USED, payer, nonce]})
@@ -270,9 +275,13 @@ class HelperTests(unittest.TestCase):
         wrong = tuple(PAYER if index == 5 else value for index, value in enumerate(args))
         self.assertEqual(self.cli("confirm-donation", *wrong, "--tx", TX)["status"],
                          "donation_receipt_does_not_match_reviewed_transfer")
+        self.ambiguous_donation = True
+        self.assertEqual(self.cli("confirm-donation", *args, "--tx", TX)["status"],
+                         "donation_receipt_does_not_match_reviewed_transfer")
+        self.ambiguous_donation = False
         self.assertEqual(self.cli("confirm-donation", *args, "--tx", TX)["tx_hash"], TX)
         self.assertEqual(self.calls, [(helper.FUNCTIONS + "/mcp", "Bearer " + TOKEN),
-                                      ("/rpc", None), ("/rpc", None),
+                                      ("/rpc", None), ("/rpc", None), ("/rpc", None),
                                       (helper.FUNCTIONS + "/mcp", "Bearer " + TOKEN)])
 
 
