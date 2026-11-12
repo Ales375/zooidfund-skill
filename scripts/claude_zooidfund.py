@@ -150,8 +150,18 @@ def mcp(name, args, token):
     return payload
 
 
+def sync_registration_directory(root):
+    if os.name == "posix":
+        descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+
 def finish_registration(root, wallet):
     staged = root / REGISTRATION_STAGE
+    target = root / SAVED_CREDENTIAL
     try:
         _, agent, saved_wallet = credential(staged)
     except (Stop, OSError, ValueError, TypeError, AttributeError):
@@ -161,9 +171,12 @@ def finish_registration(root, wallet):
     try:
         with private(staged).open("r+b") as stream:
             os.fsync(stream.fileno())
-        os.link(staged, root / SAVED_CREDENTIAL)
-    except FileExistsError:
-        raise Stop("existing_credential_use_saved_identity") from None
+        try:
+            os.link(staged, target)
+        except FileExistsError:
+            if not os.path.samefile(staged, private(target)):
+                raise Stop("existing_credential_use_saved_identity") from None
+        sync_registration_directory(root)
     except OSError:
         raise Stop("registration_credential_staged_recover_locally") from None
     try:
@@ -175,10 +188,12 @@ def finish_registration(root, wallet):
 
 def register(root, args):
     wallet = checked(args.wallet, ADDRESS).lower()
-    if args.credential is not None or os.path.lexists(root / SAVED_CREDENTIAL):
+    if args.credential is not None:
         raise Stop("existing_credential_use_saved_identity")
     if args.command == "recover-registration":
         return finish_registration(root, wallet)
+    if os.path.lexists(root / SAVED_CREDENTIAL):
+        raise Stop("existing_credential_use_saved_identity")
     name, mission = args.display_name.strip(), args.mission.strip()
     if not name or not mission or not args.operator_acknowledgement:
         raise Stop("registration_identity_and_approval_required")
@@ -186,8 +201,15 @@ def register(root, args):
         descriptor = os.open(root / REGISTRATION_STAGE, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except FileExistsError:
         raise Stop("registration_already_attempted_recover_or_check_identity") from None
+    response_validated = False
     try:
         with os.fdopen(descriptor, "wb") as stream:
+            if os.path.lexists(root / SAVED_CREDENTIAL):
+                raise Stop("existing_credential_use_saved_identity")
+            try:
+                sync_registration_directory(root)
+            except OSError:
+                raise Stop("registration_local_storage_unavailable") from None
             result = mcp("register_agent", {
                 "display_name": name, "mission": mission, "wallet_address": wallet,
                 "operator_acknowledgement": True,
@@ -197,14 +219,18 @@ def register(root, args):
                 "agent_id": checked(result.get("agent_id"), UUID),
                 "wallet_address": wallet,
             }
+            response_validated = True
             stream.write(json.dumps(record).encode())
             stream.flush()
             os.fsync(stream.fileno())
     except Stop as exc:
-        if str(exc) == "wallet_already_registered_restore_existing_identity":
+        if str(exc) in ("wallet_already_registered_restore_existing_identity",
+                        "registration_local_storage_unavailable", "existing_credential_use_saved_identity"):
             raise
         raise Stop("registration_unresolved_check_existing_identity_without_retry") from None
     except (HTTPException, OSError, ValueError, TypeError, KeyError, AttributeError, IndexError):
+        if response_validated:
+            raise Stop("registration_save_interrupted_try_local_recovery") from None
         raise Stop("registration_unresolved_check_existing_identity_without_retry") from None
     return finish_registration(root, wallet)
 

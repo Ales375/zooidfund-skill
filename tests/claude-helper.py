@@ -253,6 +253,50 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(helper.credential(self.root / helper.SAVED_CREDENTIAL), (REGISTRATION_KEY, OTHER, PAYER))
         self.assertEqual(len(self.calls), 1)
 
+    def test_registration_interrupted_flush_can_recover_complete_staging(self):
+        with patch.object(helper, "sync_registration_directory"), patch.object(
+            helper.os, "fsync", side_effect=OSError(PRIVATE),
+        ):
+            self.assertEqual(self.registration("--operator-acknowledgement")["status"],
+                             "registration_save_interrupted_try_local_recovery")
+        self.assertEqual(self.cli("recover-registration", "--wallet", PAYER, explicit_credential=False)["status"],
+                         "registered_credential_saved")
+        self.assertEqual(helper.credential(self.root / helper.SAVED_CREDENTIAL), (REGISTRATION_KEY, OTHER, PAYER))
+        self.assertEqual(len(self.calls), 1)
+
+    def test_registration_directory_sync_failures_are_safe(self):
+        with patch.object(helper, "sync_registration_directory", side_effect=OSError(PRIVATE)):
+            self.assertEqual(self.registration("--operator-acknowledgement")["status"],
+                             "registration_local_storage_unavailable")
+        self.assertEqual(self.calls, [])
+        with tempfile.TemporaryDirectory() as fresh:
+            root = Path(fresh)
+            with patch.object(helper, "sync_registration_directory", side_effect=[None, OSError(PRIVATE)]):
+                result = self.cli("register", "--wallet", PAYER, "--display-name", "Fixture name",
+                                  "--mission", "Fixture mission", "--operator-acknowledgement",
+                                  root=root, explicit_credential=False)
+            self.assertEqual(result["status"], "registration_credential_staged_recover_locally")
+            self.assertTrue((root / helper.REGISTRATION_STAGE).exists())
+            self.assertEqual(self.cli("recover-registration", "--wallet", PAYER, root=root,
+                                      explicit_credential=False)["status"], "registered_credential_saved")
+            self.assertFalse((root / helper.REGISTRATION_STAGE).exists())
+        self.assertEqual(len(self.calls), 1)
+
+    def test_registration_rechecks_existing_credential_after_acquiring_marker(self):
+        target = self.root / helper.SAVED_CREDENTIAL
+        original_open = helper.os.open
+        saved = self.credential.read_bytes()
+
+        def finish_other_registration_before_open(path, flags, mode):
+            target.write_bytes(saved)
+            return original_open(path, flags, mode)
+
+        with patch.object(helper.os, "open", side_effect=finish_other_registration_before_open):
+            self.assertEqual(self.registration("--operator-acknowledgement")["status"],
+                             "existing_credential_use_saved_identity")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(target.read_bytes(), saved)
+
     def prepare(self, *, wallet=PAYER):
         return self.cli("prepare", "--operation", OP, "--campaign", CAMPAIGN,
                         "--wallet", wallet, "--payee", PAYEE, "--amount", "0.01")
