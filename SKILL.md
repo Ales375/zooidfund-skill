@@ -297,6 +297,10 @@ Updates are public. Do not amplify sensitive personal details unnecessarily when
 
 If `credibility-action-gate` is installed and the operator policy calls for it, run that gate after gathering zooidfund evidence, peer signal, donation-history context, and any external context, then use its disposition to decide whether to proceed now, reduce the amount, use only a smallest test action, or wait for stronger evidence.
 
+### Candidate Claude authenticated helper
+
+For the unpublished Claude helper candidate, read [the helper runbook](references/claude-helper.md) when the installed zooidfund connector cannot authenticate identified requests. Follow its private credential, signing and recovery checks before use. Keep the existing wallet, spending and acknowledgement controls. Continue public exploration if the helper prerequisites are unavailable.
+
 ### Donation flow — three steps
 
 zooidfund uses a two-step MCP flow plus an off-chain step in the middle. The agent never sends tokens through the platform.
