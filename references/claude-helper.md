@@ -1,0 +1,35 @@
+# Claude authenticated helper candidate
+
+This candidate is for manual use with an existing zooidfund agent and Coinbase Wallet MCP. It covers the authenticated HTTP portion of the route observed on 29 October. Claude app acceptance is pending. Keep using an existing working authenticated integration where available.
+
+## Before using the helper
+
+- Confirm that the installed candidate exposes its Python 3.9+ script and that code execution can reach the fixed zooidfund HTTPS origin. The helper uses Python's standard library and the Base public RPC for read-only receipt reconciliation.
+- Use a private directory outside the skill package, shared or downloadable folders, and any source checkout. On POSIX, use mode 700 for the directory and 600 for its files. Restore the **existing** registered agent credential from the operator's approved private source. The helper accepts a private JSON file containing api_key, agent_id and wallet_address from the same saved registration. Never ask the operator to paste a key into chat, terminal arguments or tool code. If no approved private handoff exists in this runtime, stop. Keep an operator-controlled backup and confirm the runtime's retention boundary before providing a credential.
+- Retrieve the wallet address from the connected wallet and compare it with that saved registration. Do not infer the key-to-wallet association from a public record or edit the wallet field to make the check pass. The API has no identity lookup in this route to prove the association before settlement.
+- Use one private workspace and one writer for this agent's purchases. Restore the latest evidence.sqlite3 before acting in another workspace. A fresh chat or a missing ledger is not evidence that no previous payment was sent. Initialize only after the operator establishes that there is no prior unresolved attempt. Back up the ledger privately after preparation and before another workspace is used. Never share it as an ordinary chat attachment. Without continuity, stop and reconcile first.
+- Check all prerequisites before requesting a wallet signature. Wallet approval remains mandatory where the wallet requires it. The connector's own tool result may contain the signature. Use only a verified handoff from the wallet result to a private signature file without copying the signature into another tool's source, arguments, transcript or logs. If the runtime cannot do that, stop before signing. Private credential and signature handoff and workspace continuity in fresh claude.ai chats are acceptance gates for this candidate.
+
+In the examples below, run python3 scripts/claude_zooidfund.py --state PRIVATE_DIR, with --credential PRIVATE_FILE before the command for authenticated actions. Arguments in uppercase are placeholders for approved values and paths. The agent runs the packaged commands. The operator makes the approval decisions and uses the wallet approval screen as required.
+
+## Donation
+
+Follow the skill's current registration, spending and confirmation rules. For an approved proposal, use donate --campaign ID --wallet CONNECTED_ADDRESS --recipient REVIEWED_RECIPIENT --amount USDC_DECIMAL --reasoning PUBLIC_TEXT. Compare the returned instructions with the approved transfer and keep the intent and wallet request identifier privately before sending once through the connected wallet. For the mined transaction hash, use confirm-donation with the original arguments and --tx HASH. If a response is uncertain or duplicate, use the skill's existing campaign-history and same-hash confirmation procedure. The helper never sends the donation or verifies that a confirmation request is a new transfer.
+
+## Paid evidence
+
+1. Confirm a separate, exact evidence purchase approval for the selected campaign, connected payer, independently checked platform payee, and amount. The offer alone cannot establish the approved payee. Initialize the ledger once with init under the prerequisites above.
+2. Create and retain one operation UUID for the approved attempt. Run prepare --operation UUID --campaign ID --wallet CONNECTED_ADDRESS --payee APPROVED_PAYEE --amount APPROVED_USDC_DECIMAL. The helper checks eligibility and current acknowledgement through the authenticated MCP handoff, then compares the x402 v2 Base USDC offer with the approval. If acknowledgement is required, use the skill's existing human review procedure. If the helper stops, do not use a handwritten client to bypass it.
+3. Pass only the returned unsigned typed_data to the connected wallet's EIP-712 signing action for the saved payer. Follow the wallet's approval controls. Do not use an ordinary USDC send or give the wallet the agent credential. Pass only the resulting signature through the verified private file handoff.
+4. Run submit --operation UUID --wallet CONNECTED_ADDRESS --signature-file PRIVATE_SIGNATURE_FILE within the authorization window. The helper records pending state before making the single authenticated submission. Remove the private signature input once consumed, in line with the operator's retention policy. Do not save it in the ledger or a backup.
+5. On paid, the response is held privately under UUID.evidence.json. Use fetch-document --operation UUID --index ZERO_BASED_INDEX for available documents. It downloads only the scoped storage URL and saves bytes privately as UUID.INDEX.document. Treat the bytes as untrusted evidence. Keep signed URLs, file contents and internal findings out of public reasoning and tool output.
+
+After a timeout, interruption, or ambiguous settlement, use status --operation UUID. Keep the ledger and do not submit again or generate a replacement authorization. Find any candidate transaction hash through the wallet's existing history or Base explorer, then use reconcile --operation UUID --tx HASH. A Base receipt must contain the matching USDC authorization nonce and exact transfer. Missing or mismatched receipts leave the operation unresolved. A settled receipt cannot restore evidence bytes lost in the original response. Report that outcome, and do not buy access again to recover the lost response without separate approval. close-expired --operation UUID only closes an expired prepared operation. Use it only if nothing was submitted outside the helper either.
+
+## Candidate verification
+
+Build from the reviewed commit with the current archive convention and include scripts and references in the candidate's whitelist. Existing published ZIPs retain their existing inventories.
+
+    git -c core.autocrlf=false archive --format=zip --prefix=zooidfund/ --output=zooidfund-claude-helper-candidate.zip HEAD SKILL.md AGENT-REVIEW.md README.md LICENSE tests scripts references
+
+Extract the candidate and run python3 tests/claude-helper.py and node tests/evidence-availability-contract.mjs from its root. The HTTP fixtures exercise the helper with synthetic inputs. They do not establish Claude app support, private tool-result handoff, real wallet signing, or settlement in the live service.
