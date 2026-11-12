@@ -42,6 +42,7 @@ class HelperTests(unittest.TestCase):
         self.mode = "success"
         self.bad_receipt = False
         self.finalized_time = 0
+        self.finalized_height = 50
         self.authorization_used = False
         self.network = helper.NETWORK
         self.ambiguous_donation = False
@@ -75,7 +76,7 @@ class HelperTests(unittest.TestCase):
             call = json.loads(req.rfile.read(int(req.headers["Content-Length"])))
             if call["method"] == "eth_getBlockByNumber":
                 self.send_json(req, 200, {}, {"jsonrpc": "2.0", "id": 1, "result": {
-                    "timestamp": hex(self.finalized_time), "hash": TX,
+                    "timestamp": hex(self.finalized_time), "hash": TX, "number": hex(self.finalized_height),
                 }})
                 return
             if call["method"] == "eth_call":
@@ -98,7 +99,7 @@ class HelperTests(unittest.TestCase):
                 if self.bad_receipt:
                     logs.insert(1, {"address": helper.USDC, "topics": [], "data": "0x"})
             data = {"jsonrpc": "2.0", "id": 1, "result": {
-                "status": "0x1", "transactionHash": TX, "logs": logs,
+                "status": "0x1", "transactionHash": TX, "blockHash": TX, "blockNumber": "0x31", "logs": logs,
             }}
         elif req.path.startswith("/storage/"):
             data = {"document": PRIVATE}
@@ -213,6 +214,9 @@ class HelperTests(unittest.TestCase):
             args = ("reconcile", "--operation", OP, "--tx", TX)
             self.assertEqual(self.cli(*args, root=root)["status"], "payment_still_unresolved")
             self.bad_receipt = False
+            self.finalized_height = 48
+            self.assertEqual(self.cli(*args, root=root)["status"], "payment_still_unresolved")
+            self.finalized_height = 50
             self.assertEqual(self.cli(*args, root=root)["status"], "paid_content_unavailable")
         self.assertEqual(sum(path.endswith("/" + CAMPAIGN) for path, _ in self.calls), 2)
         self.assertTrue(all(auth is None for path, auth in self.calls if path == "/rpc"))

@@ -343,10 +343,19 @@ def close_unpaid(db, operation):
     return {"status": "expired_unpaid"}
 
 
-def matching_receipt(tx):
+def matching_receipt(tx, *, finalized=False):
     receipt = base_read("eth_getTransactionReceipt", [tx])
     if not receipt or receipt.get("transactionHash", "").lower() != tx or receipt.get("status") != "0x1":
         raise Stop("matching_base_receipt_unavailable")
+    if finalized:
+        number = checked(receipt.get("blockNumber"), r"0x[0-9a-fA-F]{1,16}")
+        block_hash = checked(receipt.get("blockHash"), HASH).lower()
+        tip = base_read("eth_getBlockByNumber", ["finalized", False])
+        if not tip or int(checked(tip.get("number"), r"0x[0-9a-fA-F]{1,16}"), 16) < int(number, 16):
+            raise Stop("payment_still_unresolved")
+        canonical = base_read("eth_getBlockByNumber", [number, False])
+        if not canonical or canonical.get("hash", "").lower() != block_hash:
+            raise Stop("payment_still_unresolved")
     return receipt["logs"]
 
 
@@ -382,7 +391,7 @@ def reconcile(db, operation, tx):
     payer = "0x" + auth["from"][2:].zfill(64)
     topics = transfer_topics(auth["from"], auth["to"])
     amount = "0x" + format(int(auth["value"]), "064x")
-    logs = matching_receipt(tx)
+    logs = matching_receipt(tx, finalized=True)
     if not any(
         usdc_event(authorization, [AUTH_USED, payer, auth["nonce"]])
         and usdc_event(transfer, topics, amount)
