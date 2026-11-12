@@ -15,7 +15,7 @@ from http.client import HTTPException
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 ORIGIN = "https://fcefnmdlggldmfusydix.supabase.co"
 FUNCTIONS = "/functions/v1"
@@ -40,7 +40,7 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 def http(url, *, token=None, body=None, payment=None, limit=MAX_BODY):
-    headers = {"Accept": "application/json"}
+    headers = {"Accept": "application/json", "User-Agent": "zooidfund-skill/claude-helper"}
     if token:
         headers["Authorization"] = "Bearer " + token
     if payment:
@@ -49,7 +49,7 @@ def http(url, *, token=None, body=None, payment=None, limit=MAX_BODY):
         headers["Content-Type"] = "application/json"
     req = Request(url, None if body is None else json.dumps(body).encode(), headers)
     try:
-        response = build_opener(ProxyHandler({}), NoRedirect()).open(req, timeout=15)
+        response = build_opener(NoRedirect()).open(req, timeout=15)
     except HTTPError as exc:
         response = exc
     with response:
@@ -160,6 +160,8 @@ def payment_header(headers, name):
 def evidence_offer(campaign, token, payee, amount):
     handoff = mcp("get_evidence", {"campaign_id": campaign}, token)
     if handoff.get("eligibility_status") == "not_eligible":
+        if handoff.get("reason") == "missing_or_invalid_agent_authorization":
+            raise Stop("credential_rejected")
         if handoff.get("reason") == "operator_acknowledgement_required":
             raise Stop("operator_acknowledgement_required")
         raise Stop("evidence_not_eligible")
@@ -236,7 +238,7 @@ def prepare(db, args, operation, identity):
     payee, amount = checked(args.payee, ADDRESS).lower(), approved_amount(args.amount)
     offer, resource = evidence_offer(campaign, token, payee, amount)
     now = int(time.time())
-    auth = {"from": payer, "to": payee, "value": str(amount), "validAfter": str(now - 1),
+    auth = {"from": payer, "to": payee, "value": str(amount), "validAfter": "0",
             "validBefore": str(now + offer["maxTimeoutSeconds"]), "nonce": "0x" + secrets.token_hex(32)}
     intent = {"agent_id": agent, "campaign": campaign, "auth": auth, "offer": offer, "resource": resource}
     with db:
@@ -266,7 +268,7 @@ def submit(db, root, args, operation, identity):
         status, headers, data = http(evidence_urls(intent["campaign"])[0], token=token, payment=payment)
         receipt = payment_header(headers, "PAYMENT-RESPONSE")
         tx = checked(receipt.get("transaction"), HASH).lower()
-        if (receipt.get("success") is not True or receipt.get("network") != NETWORK
+        if (receipt.get("success") is not True or receipt.get("network") not in (NETWORK, "base")
                 or checked(receipt.get("payer"), ADDRESS).lower() != payer
                 or receipt.get("amount", auth["value"]) != auth["value"]):
             return {"status": "payment_uncertain_reconcile_without_resubmitting", "transaction_hint": tx}
@@ -312,36 +314,81 @@ def fetch_document(db, root, operation, index):
     return {"status": "document_saved", "index": index}
 
 
+def base_read(method, params):
+    status, _, raw = http(BASE_RPC, body=rpc(method, params))
+    envelope = json.loads(raw)
+    if status != 200 or envelope.get("jsonrpc") != "2.0" or envelope.get("id") != 1 or "error" in envelope:
+        raise Stop("base_verification_unavailable")
+    return envelope.get("result")
+
+
+def close_unpaid(db, operation):
+    intent, state, _ = attempt(db, operation)
+    if state != "pending":
+        raise Stop("no_submitted_payment")
+    auth = intent["auth"]
+    finalized = base_read("eth_getBlockByNumber", ["finalized", False])
+    if not finalized:
+        raise Stop("base_verification_unavailable")
+    timestamp = checked(finalized["timestamp"], r"0x[0-9a-fA-F]{1,16}")
+    if int(timestamp, 16) <= int(auth["validBefore"]):
+        raise Stop("payment_still_unresolved")
+    block_hash = checked(finalized["hash"], HASH)
+    call = {"to": USDC, "data": "0xe94a0102" + auth["from"][2:].zfill(64) + auth["nonce"][2:]}
+    # authorizationState(address,bytes32) is true after use or cancellation.
+    used = base_read("eth_call", [call, {"blockHash": block_hash, "requireCanonical": True}])
+    if used != "0x" + "0" * 64:
+        raise Stop("payment_still_unresolved")
+    transition(db, operation, "pending", "expired_unpaid")
+    return {"status": "expired_unpaid"}
+
+
+def matching_receipt(tx):
+    receipt = base_read("eth_getTransactionReceipt", [tx])
+    if not receipt or receipt.get("transactionHash", "").lower() != tx or receipt.get("status") != "0x1":
+        raise Stop("matching_base_receipt_unavailable")
+    return receipt["logs"]
+
+
+def usdc_event(log, topics, data=None):
+    return (log.get("address", "").lower() == USDC and log.get("removed") is not True
+            and log.get("topics") == topics and (data is None or log.get("data") == data))
+
+
+def transfer_topics(payer, payee):
+    return [TRANSFER, "0x" + payer[2:].zfill(64), "0x" + payee[2:].zfill(64)]
+
+
 def reconcile(db, operation, tx):
     intent, state, existing = attempt(db, operation)
     if state == "paid":
         return {"status": "paid", "transaction": existing}
     if state != "pending":
         raise Stop("no_submitted_payment")
-    status, _, raw = http(BASE_RPC, body=rpc("eth_getTransactionReceipt", [tx]))
-    receipt = json.loads(raw).get("result") if status == 200 else None
-    if not receipt or receipt.get("transactionHash", "").lower() != tx or receipt.get("status") != "0x1":
-        raise Stop("payment_still_unresolved")
     auth = intent["auth"]
     payer = "0x" + auth["from"][2:].zfill(64)
-    payee = "0x" + auth["to"][2:].zfill(64)
-    logs = [log for log in receipt["logs"]
-            if log.get("address", "").lower() == USDC and log.get("removed") is not True]
-    if not any(log.get("topics") == [AUTH_USED, payer, auth["nonce"]] for log in logs) or not any(
-        log.get("topics") == [TRANSFER, payer, payee]
-        and log.get("data") == "0x" + format(int(auth["value"]), "064x") for log in logs
+    topics = transfer_topics(auth["from"], auth["to"])
+    amount = "0x" + format(int(auth["value"]), "064x")
+    logs = matching_receipt(tx)
+    if not any(
+        usdc_event(authorization, [AUTH_USED, payer, auth["nonce"]])
+        and usdc_event(transfer, topics, amount)
+        for authorization, transfer in zip(logs, logs[1:])
     ):
         raise Stop("payment_still_unresolved")
     transition(db, operation, "pending", "paid", tx)
     return {"status": "paid_content_unavailable", "transaction": tx}
 
 
-def donation(args, token):
+def donation(args, token, payer):
     campaign, amount = checked(args.campaign, UUID), approved_amount(args.amount)
     recipient = checked(args.recipient, ADDRESS).lower()
     payload = {"campaign_id": campaign, "amount": amount / 1_000_000, "reasoning": args.reasoning}
     if args.command == "confirm-donation":
         tx = checked(args.tx, HASH).lower()
+        topics = transfer_topics(payer, recipient)
+        if not any(usdc_event(log, topics, "0x" + format(amount, "064x")) for log in matching_receipt(tx)):
+            raise Stop("donation_receipt_does_not_match_reviewed_transfer")
         result = mcp("confirm_donation", {**payload, "tx_hash": tx}, token)
         if "duplicate_donation_id" in result:
             return {"status": "duplicate_check_campaign_history", **result}
@@ -367,7 +414,7 @@ def run(args):
         if checked(args.wallet, ADDRESS).lower() != identity[2]:
             raise Stop("wallet_mismatch")
         if args.command in ("donate", "confirm-donation"):
-            return donation(args, identity[0])
+            return donation(args, identity[0], identity[2])
     operation = checked(args.operation, UUID)
     db = ledger(root)
     try:
@@ -375,6 +422,11 @@ def run(args):
             return prepare(db, args, operation, identity)
         if args.command == "submit":
             return submit(db, root, args, operation, identity)
+        if args.command == "quarantine-restored":
+            transition(db, operation, "prepared", "pending")
+            return {"status": "pending"}
+        if args.command == "close-unpaid":
+            return close_unpaid(db, operation)
         if args.command == "fetch-document":
             return fetch_document(db, root, operation, args.index)
         if args.command == "reconcile":
@@ -396,7 +448,8 @@ def main(argv=None):
     parser.add_argument("--credential", type=Path)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
-    for name in ("donate", "confirm-donation", "prepare", "submit", "status", "reconcile", "close-expired", "fetch-document"):
+    for name in ("donate", "confirm-donation", "prepare", "submit", "status", "reconcile",
+                 "close-expired", "fetch-document", "quarantine-restored", "close-unpaid"):
         command = commands.add_parser(name)
         if name in ("donate", "confirm-donation"):
             fields = ["campaign", "recipient", "amount", "wallet", "reasoning"]

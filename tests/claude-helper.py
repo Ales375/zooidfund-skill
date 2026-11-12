@@ -41,6 +41,9 @@ class HelperTests(unittest.TestCase):
         self.offer_change = {}
         self.mode = "success"
         self.bad_receipt = False
+        self.finalized_time = 0
+        self.authorization_used = False
+        self.network = helper.NETWORK
         test = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -68,15 +71,27 @@ class HelperTests(unittest.TestCase):
         status, headers = 200, {}
         data = {"debug": PRIVATE}
         if req.path == "/rpc":
-            auth = self.payload["payload"]["authorization"]
+            call = json.loads(req.rfile.read(int(req.headers["Content-Length"])))
+            if call["method"] == "eth_getBlockByNumber":
+                self.send_json(req, 200, {}, {"jsonrpc": "2.0", "id": 1, "result": {
+                    "timestamp": hex(self.finalized_time), "hash": TX,
+                }})
+                return
+            if call["method"] == "eth_call":
+                self.last_chain_call = call["params"]
+                self.send_json(req, 200, {}, {"jsonrpc": "2.0", "id": 1,
+                                             "result": "0x" + format(int(self.authorization_used), "064x")})
+                return
             payer, payee = ("0x" + x[2:].zfill(64) for x in (PAYER, PAYEE))
             logs = [
-                {"address": helper.USDC, "topics": [helper.AUTH_USED, payer, auth["nonce"]]},
                 {"address": helper.USDC, "topics": [helper.TRANSFER, payer, payee],
-                 "data": "0x" + format(10000, "064x")},
+                 "data": "0x" + format(10000 if self.payload else 2000000, "064x")},
             ]
-            if self.bad_receipt:
-                logs.pop(0)
+            if self.payload:
+                nonce = self.payload["payload"]["authorization"]["nonce"]
+                logs.insert(0, {"address": helper.USDC, "topics": [helper.AUTH_USED, payer, nonce]})
+                if self.bad_receipt:
+                    logs.insert(1, {"address": helper.USDC, "topics": [], "data": "0x"})
             data = {"jsonrpc": "2.0", "id": 1, "result": {
                 "status": "0x1", "transactionHash": TX, "logs": logs,
             }}
@@ -101,6 +116,8 @@ class HelperTests(unittest.TestCase):
                             "price": 0.01, "currency": "USDC"}
                 if self.mode == "ack":
                     response = {"eligibility_status": "not_eligible", "reason": "operator_acknowledgement_required"}
+                if self.mode == "auth-tool-denial":
+                    response = {"eligibility_status": "not_eligible", "reason": "missing_or_invalid_agent_authorization"}
             data = {"jsonrpc": "2.0", "id": 1, "result": {"structuredContent": response}}
         elif req.headers.get("PAYMENT-SIGNATURE"):
             self.payload = json.loads(base64.b64decode(req.headers["PAYMENT-SIGNATURE"]))
@@ -108,7 +125,7 @@ class HelperTests(unittest.TestCase):
                 self.close_connection = True
                 return
             headers["PAYMENT-RESPONSE"] = self.header({
-                "success": True, "transaction": TX, "network": helper.NETWORK,
+                "success": True, "transaction": TX, "network": self.network,
                 "payer": PAYER, "amount": "10000",
             })
             url = helper.ORIGIN + "/storage/v1/object/sign/evidence/sample.pdf?token=" + PRIVATE
@@ -128,6 +145,10 @@ class HelperTests(unittest.TestCase):
                 "x402Version": 2, "resource": {"url": helper.evidence_urls(CAMPAIGN)[1]},
                 "accepts": [offer],
             })
+        self.send_json(req, status, headers, data)
+
+    @staticmethod
+    def send_json(req, status, headers, data):
         req.send_response(status)
         for key, value in headers.items():
             req.send_header(key, value)
@@ -158,6 +179,7 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(self.cli("init")["status"], "ledger_initialized")
         handoff = self.prepare()["typed_data"]
         self.assertEqual(handoff["domain"]["chainId"], 8453)
+        self.network = "base"
         self.assertEqual(self.submit()["status"], "paid")
         self.assertEqual(self.payload["payload"], {"signature": SIGNATURE, "authorization": handoff["message"]})
         self.assertEqual(self.submit()["status"], "already_attempted_check_status")
@@ -195,7 +217,8 @@ class HelperTests(unittest.TestCase):
         self.cli("init")
         self.assertEqual(self.prepare(wallet=PAYEE)["status"], "wallet_mismatch")
         self.assertEqual(self.calls, [])
-        for mode, expected in (("deny", "credential_rejected"), ("ack", "operator_acknowledgement_required"),
+        for mode, expected in (("deny", "credential_rejected"), ("auth-tool-denial", "credential_rejected"),
+                               ("ack", "operator_acknowledgement_required"),
                                ("foreign", "evidence_handoff_mismatch"), ("redirect", "redirect_blocked")):
             with self.subTest(mode=mode):
                 self.mode = mode
@@ -211,12 +234,46 @@ class HelperTests(unittest.TestCase):
         self.credential.unlink()
         self.assertEqual(self.prepare()["status"], "credential_missing_restore_existing_identity")
 
+    def test_stale_prepared_backup_becomes_recovery_only(self):
+        self.cli("init")
+        auth = self.prepare()["typed_data"]["message"]
+        stale = (self.root / "evidence.sqlite3").read_bytes()
+        self.mode = "disconnect"
+        self.submit()
+        with tempfile.TemporaryDirectory() as second:
+            root = Path(second)
+            helper.write_private(root / "evidence.sqlite3", stale)
+            args = ("--operation", OP)
+            self.assertEqual(self.cli("quarantine-restored", *args, root=root)["status"], "pending")
+            self.assertEqual(self.cli("submit", *args, "--wallet", PAYER, "--signature-file",
+                                      str(self.signature), root=root)["status"], "already_attempted_check_status")
+            self.assertEqual(self.cli("close-unpaid", *args, root=root)["status"], "payment_still_unresolved")
+            self.finalized_time = int(auth["validBefore"]) + 1
+            self.authorization_used = True
+            self.assertEqual(self.cli("close-unpaid", *args, root=root)["status"], "payment_still_unresolved")
+            self.authorization_used = False
+            self.assertEqual(self.cli("close-unpaid", *args, root=root)["status"], "expired_unpaid")
+            self.assertEqual(self.last_chain_call[1], {"blockHash": TX, "requireCanonical": True})
+            self.assertTrue(self.last_chain_call[0]["data"].endswith(auth["nonce"][2:]))
+            self.assertEqual(self.cli("prepare", "--operation", OP, "--campaign", CAMPAIGN,
+                                      "--wallet", PAYER, "--payee", PAYEE, "--amount", "0.01", root=root)["status"],
+                             "existing_attempt_check_status")
+            self.assertEqual(self.cli("prepare", "--operation", OTHER, "--campaign", CAMPAIGN,
+                                      "--wallet", PAYER, "--payee", PAYEE, "--amount", "0.01", root=root)["status"],
+                             "prepared")
+        self.assertEqual(sum(path.endswith("/" + CAMPAIGN) for path, _ in self.calls), 3)
+
     def test_donation_requests_only_use_existing_mcp(self):
         args = ("--campaign", CAMPAIGN, "--wallet", PAYER, "--recipient", PAYEE,
                 "--amount", "2", "--reasoning", "Fixture public reasoning.")
         self.assertEqual(self.cli("donate", *args)["amount_minor_units"], 2000000)
+        wrong = tuple(PAYER if index == 5 else value for index, value in enumerate(args))
+        self.assertEqual(self.cli("confirm-donation", *wrong, "--tx", TX)["status"],
+                         "donation_receipt_does_not_match_reviewed_transfer")
         self.assertEqual(self.cli("confirm-donation", *args, "--tx", TX)["tx_hash"], TX)
-        self.assertEqual(self.calls, [(helper.FUNCTIONS + "/mcp", "Bearer " + TOKEN)] * 2)
+        self.assertEqual(self.calls, [(helper.FUNCTIONS + "/mcp", "Bearer " + TOKEN),
+                                      ("/rpc", None), ("/rpc", None),
+                                      (helper.FUNCTIONS + "/mcp", "Bearer " + TOKEN)])
 
 
 if __name__ == "__main__":
