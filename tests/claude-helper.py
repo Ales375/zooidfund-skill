@@ -215,6 +215,9 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(self.calls, [(helper.FUNCTIONS + "/mcp", None)])
         self.assertEqual(helper.credential(self.root / helper.SAVED_CREDENTIAL), (REGISTRATION_KEY, OTHER, PAYER))
         self.assertFalse((self.root / helper.REGISTRATION_STAGE).exists())
+        self.assertEqual(self.cli("recover-registration", "--wallet", PAYER, explicit_credential=False),
+                         {"status": "registered_credential_saved", "agent_id": OTHER})
+        self.assertEqual(self.calls, [(helper.FUNCTIONS + "/mcp", None)])
         self.assertEqual(self.registration("--operator-acknowledgement")["status"],
                          "existing_credential_use_saved_identity")
         result = self.cli("donate", "--campaign", CAMPAIGN, "--recipient", PAYEE, "--wallet", PAYER,

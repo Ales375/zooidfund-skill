@@ -162,12 +162,15 @@ def sync_registration_directory(root):
 def finish_registration(root, wallet):
     staged = root / REGISTRATION_STAGE
     target = root / SAVED_CREDENTIAL
+    already_saved = not os.path.lexists(staged)
     try:
-        _, agent, saved_wallet = credential(staged)
+        _, agent, saved_wallet = credential(target if already_saved else staged)
     except (Stop, OSError, ValueError, TypeError, AttributeError):
         raise Stop("registration_recovery_unavailable") from None
     if saved_wallet != wallet:
         raise Stop("wallet_mismatch")
+    if already_saved:
+        return {"status": "registered_credential_saved", "agent_id": agent}
     try:
         with private(staged).open("r+b") as stream:
             os.fsync(stream.fileno())
