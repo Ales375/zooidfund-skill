@@ -2,6 +2,16 @@
 
 This candidate is for manual use with Coinbase Wallet MCP. It wraps the existing zooidfund registration flow and covers the authenticated HTTP portion of the route observed on 29 October. Claude app acceptance is pending. Keep using an existing working authenticated integration where available.
 
+## Observed Claude app limits
+
+The 23 November 2026 fresh Claude walkthrough captured a synthetic registration credential in a private sandbox file and restored a pending ledger that refused another submission. Those checks establish local helper behavior. They did not establish private restoration of the real credential and latest ledger in another normal Claude chat.
+
+Coinbase Wallet MCP's inspected sign and get_request_status descriptions return signature data through their tool results. They advertise no private file handle or destination-file parameter. This helper's submit command requires a private signature file. The current Claude app route has no verified operation that moves that result to the file while keeping it out of chat, tool code and logs. Stop before signing until that operation is demonstrated with synthetic data. The successful 29 October payment used a sandbox client after wallet signing, and its record does not demonstrate this private handoff.
+
+Anthropic documents programmatic tool calling as a Messages API feature that requires compatible tool configuration. That documentation does not establish that the installed Coinbase connector can be called privately from a normal claude.ai sandbox. A skill instruction cannot supply that capability. See the [programmatic tool calling documentation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/programmatic-tool-calling).
+
+Completing this route under the current privacy requirements requires a runtime with both an operator-controlled private workspace that can be restored and a private wallet-result handoff. Confirm those existing capabilities before registration or signing. This candidate remains blocked for the intended normal Claude app journey while either capability is missing.
+
 ## Before using the helper
 
 - Confirm that the installed candidate exposes its Python 3.9+ script and that code execution can reach the fixed zooidfund HTTPS origin. The helper uses Python's standard library and the Base public RPC for read-only receipt reconciliation.
