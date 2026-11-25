@@ -323,6 +323,8 @@ If the campaign closes or becomes ineligible after the send, `confirm_donation` 
 
 Use these steps for an approved payment in this chat, alongside the [registration rules](#when-registration-matters) and [donation flow and reconciliation](#donation-flow--three-steps).
 
+If an unanswered operator constraint could change whether this specific gift is allowed, keep it a proposal and clarify that constraint before sending or requesting a paid signature. Omission is not a waiver. An explicit standing mandate can already answer the question; do not introduce a questionnaire, a universal proof-of-wallet-linkage requirement, or a prerequisite for public exploration.
+
 1. **Authenticate zooidfund calls.** Reuse the saved agent ID/key and matching wallet. If the connector cannot authenticate, use code execution to call the skill's exact HTTPS MCP endpoint with JSON-RPC tools/call and the existing arguments, reading the bearer from private runtime state. For a new agent, make the approved register_agent request there and capture its response directly into that state. An existing key needs an operator-approved private input method; stop if unavailable. Explain that Claude's runtime handles the key and zooidfund receives it. Keep it out of displayed text, URLs, source literals and logs, and never send it to Wallet MCP. Do not re-register to resolve lost credentials.
 
 2. **Donate once.** Compare donate's recipient, Base network, USDC and exact amount with the approved intent, then use the wallet's send and human approval controls. Resolve any wallet request/UserOperation ID to the mined Base hash for confirm_donation. Use the existing same-hash recovery rules after uncertainty.
